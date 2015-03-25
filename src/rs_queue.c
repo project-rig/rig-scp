@@ -4,6 +4,17 @@
 #include <rs_queue.h>
 #include <rs_scp.h>
 
+/**
+ * Calculate the pointer to the rs__q_entry_t in the given block at the
+ * specified index.
+ *
+ * @param rs__q_t *q
+ * @param rs__q_block_t *blk
+ * @param int entry
+ * @returns rs__q_entry_t *
+ */
+#define BLOCK_ENTRY(q, blk, entry) \
+	((rs__q_entry_t *)((blk->block) + ((entry) * ((q)->data_size))))
 
 /**
  * Initialise the entries of a block of queue entries as a linked list.
@@ -11,22 +22,24 @@
  * Doesn't initialise the last "next" pointer.
  */
 void
-rs__q_block_init(rs__q_entry_t *entries, size_t n_entries) {
+rs__q_block_init(rs__q_t *q, rs__q_block_t *block) {
 	size_t i;
-	for (i = 0; i < n_entries; i++) {
-		entries[i].empty = true;
+	for (i = 0; i < block->size; i++) {
+		BLOCK_ENTRY(q, block, i)->empty = true;
 		
-		if (i < n_entries - 1)
-			entries[i].next = &(entries[i + 1]);
+		if (i < block->size - 1)
+			BLOCK_ENTRY(q, block, i)->next = BLOCK_ENTRY(q, block, i + 1);
 	}
 }
 
 
 rs__q_t *
-rs__q_init(void)
+rs__q_init(size_t data_size)
 {
 	rs__q_t *q = malloc(sizeof(rs__q_t));
 	if (!q) return NULL;
+	
+	q->data_size = data_size;
 	
 	// Allocate the initial block of queue entries
 	q->blocks = malloc(sizeof(rs__q_block_t));
@@ -36,7 +49,7 @@ rs__q_init(void)
 	}
 	q->blocks->next = NULL;
 	q->blocks->size = RS__Q_FIRST_BLOCK_SIZE;
-	q->blocks->block = calloc(RS__Q_FIRST_BLOCK_SIZE, sizeof(rs__q_entry_t));
+	q->blocks->block = calloc(RS__Q_FIRST_BLOCK_SIZE, q->data_size);
 	if (!q->blocks->block) {
 		free(q->blocks);
 		free(q);
@@ -44,18 +57,19 @@ rs__q_init(void)
 	}
 	
 	// Initialise the block as a closed loop
-	rs__q_block_init(q->blocks->block, q->blocks->size);
-	q->blocks->block[q->blocks->size - 1].next = &(q->blocks->block[0]);
+	rs__q_block_init(q, q->blocks);
+	BLOCK_ENTRY(q, q->blocks, q->blocks->size - 1)->next =
+		BLOCK_ENTRY(q, q->blocks, 0);
 	
 	// Set the head and tail to point to the same (empty) entries
-	q->head = q->blocks->block;
-	q->tail = q->blocks->block;
+	q->head = (rs__q_entry_t *)q->blocks->block;
+	q->tail = (rs__q_entry_t *)q->blocks->block;
 	
 	return q;
 }
 
 
-rs__q_entry_t *
+void *
 rs__q_insert(rs__q_t *q)
 {
 	// Allocate more buffer space if the queue would become full upon inserting
@@ -66,16 +80,16 @@ rs__q_insert(rs__q_t *q)
 		rs__q_block_t *new_block = malloc(sizeof(rs__q_block_t));
 		if (!new_block) return NULL;
 		new_block->size = q->blocks->size * 2;
-		new_block->block = calloc(new_block->size, sizeof(rs__q_entry_t));
+		new_block->block = calloc(new_block->size, q->data_size);
 		if (!new_block->block) {
 			free(new_block);
 			return;
 		}
 		
 		// Initialise the new block and insert it into the queue's linked list
-		rs__q_block_init(new_block->block, new_block->size);
-		new_block->block[new_block->size - 1].next = q->head->next;
-		q->head->next = &(new_block->block[0]);
+		rs__q_block_init(q, new_block);
+		BLOCK_ENTRY(q, new_block, new_block->size - 1)->next = q->head->next;
+		q->head->next = (rs__q_entry_t *)new_block->block;
 		
 		// Insert the new block into to the linked list of blocks
 		new_block->next = q->blocks;
@@ -87,11 +101,11 @@ rs__q_insert(rs__q_t *q)
 	rs__q_entry_t *entry = q->head;
 	entry->empty = false;
 	q->head = q->head->next;
-	return entry;
+	return (void *)entry;
 }
 
 
-rs__q_entry_t *
+void *
 rs__q_remove(rs__q_t *q)
 {
 	rs__q_entry_t *entry = q->tail;
@@ -100,18 +114,18 @@ rs__q_remove(rs__q_t *q)
 	if (!entry->empty) {
 		entry->empty = true;
 		q->tail = q->tail->next;
-		return entry;
+		return (void *)entry;
 	} else {
 		return NULL;
 	}
 }
 
 
-rs__q_entry_t *
+void *
 rs__q_peek(rs__q_t *q)
 {
 	if (!q->tail->empty) {
-		return q->tail;
+		return (void *)q->tail;
 	} else {
 		return NULL;
 	}
