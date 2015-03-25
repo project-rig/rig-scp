@@ -51,3 +51,24 @@ The end user is notably required to perform the following duties:
   connection.
 * Generation and interpretation of SCP commands and responses (with the
   sole exception of bulk read/writes).
+
+Compiling
+---------
+
+CMake is used to automate the build process. To begin with we recommend using a
+seperate build directory as follows:
+
+    $ mkdir build
+    $ cd build
+    $ cmake ..
+
+This will create a `Makefile` in the `build/` directory. Type `make` to compile
+Rig SCP.
+
+Tests
+-----
+
+[Check](http://check.sourceforge.net/) is used for unit testing. To build and
+run the test suite under valgrind use:
+
+    $ make run_tests

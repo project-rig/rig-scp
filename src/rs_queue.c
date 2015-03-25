@@ -4,45 +4,6 @@
 #include <rs_queue.h>
 #include <rs_scp.h>
 
-/**
- * The size to use for the initial allocation of queue entries.
- */
-#define RS_Q_FIRST_BLOCK_SIZE 8
-
-
-/**
- * A linked list of blocks of memory allocated to storing rs__q_entry_t.
- */
-struct rs__q_block;
-typedef struct rs__q_block rs__q_block_t;
-struct rs__q_block {
-	// Pointer to the allocated block
-	rs__q_entry_t *block;
-	
-	// Size of the block (in entries)
-	size_t size;
-	
-	// Pointer to the next allocated block or NULL if no more blocks are
-	// allocated.
-	rs__q_block_t *next;
-};
-
-
-struct rs__q {
-	// Pointers to the head and tail of the queue. Items are inserted into the
-	// head of the queue and taken from the tail. If tail points to an empty
-	// entry, the queue is empty. The head must always point to an empty entry.
-	// When an item is inserted the new head becomes head->next. If the new head
-	// is not empty, the queue must be enlarged. The tail points at the next entry
-	// to remove and when an item is removed, the new tail becomes tail->next. If
-	// the tail is empty, head == tail and the queue is empty.
-	rs__q_entry_t *head;
-	rs__q_entry_t *tail;
-	
-	// A linked list of blocks of memory allocated to support the queue
-	rs__q_block_t *blocks;
-};
-
 
 /**
  * Initialise the entries of a block of queue entries as a linked list.
@@ -74,8 +35,8 @@ rs__q_init(void)
 		return NULL;
 	}
 	q->blocks->next = NULL;
-	q->blocks->size = RS_Q_FIRST_BLOCK_SIZE;
-	q->blocks->block = calloc(RS_Q_FIRST_BLOCK_SIZE, sizeof(rs__q_entry_t));
+	q->blocks->size = RS__Q_FIRST_BLOCK_SIZE;
+	q->blocks->block = calloc(RS__Q_FIRST_BLOCK_SIZE, sizeof(rs__q_entry_t));
 	if (!q->blocks->block) {
 		free(q->blocks);
 		free(q);
