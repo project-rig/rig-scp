@@ -10,11 +10,7 @@
 #ifndef RS_QUEUE_H
 #define RS_QUEUE_H
 
-#include <stdint.h>
 #include <stdbool.h>
-#include <uv.h>
-
-#include <rs_scp.h>
 
 /**
  * The size to use for the initial allocation of queue entries.

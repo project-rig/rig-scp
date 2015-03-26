@@ -29,17 +29,15 @@ Architecture
 * Requests from the *request queue* and taken in order and transmitted to the
   machine. SCP packets awaiting a response are placed in an *outstanding queue*
   while an acknowledgement is awaited from the machine.
-* When an SCP acknowledgement arrives, a response is placed in a *response
-  queue* where it is left up to the user's application to handle the response.
-  Responses are returned in approximately the order they are returned from the
-  machine which may not match the order in which they are sent.
+* When an SCP acknowledgement arrives or a read/write completes, a callback will
+  be called.
 * In the case of bulk read/write commands, multiple SCP packets may be used
-  internally to complete the request however only a single request and response
-  will be presented to the user.
+  internally to complete the request however only a single request need be
+  presented by the user.
 * If an SCP acknowledgement does not arrive before a timeout occurs, the request
   packet will be retransmitted. If after a number of retransmission attempts no
-  acknowledge is forthcoming, a failure message will be placed in the *response
-  queue*.
+  acknowledge is forthcoming, a failure indication will be provided to the
+  callback function.
 
 The end user is notably required to perform the following duties:
 

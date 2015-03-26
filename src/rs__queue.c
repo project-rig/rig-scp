@@ -1,8 +1,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include <rs_queue.h>
-#include <rs_scp.h>
+#include <rs__queue.h>
 
 /**
  * Calculate the pointer to the rs__q_entry_t in the given block at the
@@ -14,7 +13,7 @@
  * @returns rs__q_entry_t *
  */
 #define BLOCK_ENTRY(q, blk, entry) \
-	((rs__q_entry_t *)((blk->block) + ((entry) * ((q)->data_size))))
+	((rs__q_entry_t *)((char *)((blk)->block) + ((entry) * ((q)->data_size))))
 
 /**
  * Initialise the entries of a block of queue entries as a linked list.
@@ -82,8 +81,9 @@ rs__q_insert(rs__q_t *q)
 		new_block->size = q->blocks->size * 2;
 		new_block->block = calloc(new_block->size, q->data_size);
 		if (!new_block->block) {
+			// Fail
 			free(new_block);
-			return;
+			return NULL;
 		}
 		
 		// Initialise the new block and insert it into the queue's linked list

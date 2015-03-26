@@ -6,7 +6,7 @@
 
 #include "tests.h"
 
-#include "rs_queue.h"
+#include "rs__queue.h"
 
 // Data type placed in the queue during all tests
 typedef struct {
