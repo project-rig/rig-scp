@@ -32,13 +32,13 @@ rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os)
 		                conn->addr,
 		                rs__udp_send_cb)) {
 			// Transmission failiure: clean up
-			rs__cancel_outstanding(conn, os);
+			rs__cancel_outstanding(conn, os, -1);
 			return;
 		}
 		os->send_req_active = true;
 	} else {
 		// Maximum number of attempts made, fail and clean up.
-		rs__cancel_outstanding(conn, os);
+		rs__cancel_outstanding(conn, os, -1);
 	}
 }
 
@@ -84,7 +84,7 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 	
 	// If something went wrong, cancel the request
 	if (status != 0) {
-		rs__cancel_outstanding(os->conn, os);
+		rs__cancel_outstanding(os->conn, os, -1);
 		return;
 	}
 	
@@ -190,7 +190,7 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 	
 	// Check the response was OK and fail if not
 	if (cmd_rc != RS__SCP_CMD_OK) {
-		rs__cancel_outstanding(conn, os);
+		rs__cancel_outstanding(conn, os, cmd_rc);
 		return;
 	}
 	

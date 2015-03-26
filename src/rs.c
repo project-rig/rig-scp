@@ -231,7 +231,7 @@ rs_free(rs_conn_t *conn)
 	
 	// Cancel all outstanding requests
 	for (i = 0; i < conn->n_outstanding; i++)
-		rs__cancel_outstanding(conn, &(conn->outstanding[i]));
+		rs__cancel_outstanding(conn, &(conn->outstanding[i]), -1);
 	
 	// Cancel all remaining queued requests
 	rs__req_t *req;

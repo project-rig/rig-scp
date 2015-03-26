@@ -56,10 +56,10 @@ typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
  * @param conn The SCP connection through which the packet was sent.
  * @param error True if anything went wrong during the write. For example, any
  *              packet timed out or recieved a response which was not RC_OK.
- * @param cmd_rc If error is true, this field will be -1 if a timeout or other
- *               error ocurred or the cmd_rc returned in the first bad reply to
- *               arrive. If error is false, the value of this argument is
- *               undefined.
+ * @param cmd_rc If error is true, this field will be the cmd_rc returned in the
+ *               first bad reply to arrive. If the command failed due to a
+ *               timeout or other error, this field will be -1. If error is
+ *               false, the value of this argument is undefined.
  * @param data The buffer containing the read data or written data, unchanged
  *             for read and write commands, respectively.
  * @param cb_data The pointer suplied when registering the callback.

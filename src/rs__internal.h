@@ -262,12 +262,15 @@ void rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os);
 /**
  * Cancel the sending of a given outstanding request.
  *
- * This function returns an error to the associated request callback. If the
- * request is a read or write, it also cancells all other associated outstanding
- * channels and removes the request from the request queue (if it is still
- * there).
+ * Returns an error with the specified cmd_rc (should be -1 if the error is not
+ * an SCP-reported one).
+ *
+ * If the request is a read or write, it also cancells all other associated
+ * outstanding channels and removes the request from the request queue (if it is
+ * still there).
  */
-void rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os);
+void rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
+                            uint16_t cmd_rc);
 
 
 /**
