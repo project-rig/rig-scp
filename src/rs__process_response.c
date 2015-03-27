@@ -4,6 +4,7 @@
 
 #include <sys/socket.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -18,7 +19,7 @@
 
 void
 rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
-                                uv_buf_t *buf)
+                                uv_buf_t buf)
 {
 	// Unpack the packet
 	uint16_t cmd_rc;
@@ -27,7 +28,7 @@ rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
 	uint32_t arg2;
 	uint32_t arg3;
 	uv_buf_t data;
-	rs__unpack_scp_packet(*buf,
+	rs__unpack_scp_packet(buf,
 	                      &cmd_rc,
 	                      &seq_num,
 	                      os->data.scp_packet.n_args_recv,
@@ -51,7 +52,7 @@ rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
 
 void
 rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
-                        uv_buf_t *buf)
+                        uv_buf_t buf)
 {
 	int i;
 	
@@ -59,7 +60,7 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 	uint16_t cmd_rc;
 	uint16_t seq_num;
 	uv_buf_t data;
-	rs__unpack_scp_packet(*buf,
+	rs__unpack_scp_packet(buf,
 	                      &cmd_rc,
 	                      &seq_num,
 	                      0, NULL, NULL, NULL,
@@ -85,8 +86,9 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 	for (i = 0; i < conn->n_outstanding; i++) {
 		if (conn->outstanding[i].active &&
 		    conn->outstanding[i].type == os->type &&
-		    conn->outstanding[i].data.rw.id == os->data.rw.id)
+		    conn->outstanding[i].data.rw.id == os->data.rw.id) {
 			last_outstanding = false;
+		}
 	}
 	// Check to see if this command relates to the command at the head of the
 	// request queue.
@@ -105,10 +107,13 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 
 
 void
-rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t *buf)
+rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t buf)
 {
 	// Stop the timeout timer
 	uv_timer_stop(&(os->timer_handle));
+	
+	// Mark this outstanding channel as inactive again.
+	os->active = false;
 	
 	// Deal with the packet depending on its type
 	switch (os->type) {
@@ -122,8 +127,6 @@ rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t *buf)
 			break;
 	}
 	
-	// Mark this outstanding channel as inactive again and trigger queue
-	// processing since we just freed up an outstanding channel.
-	os->active = false;
+	// Trigger queue processing since we just freed up an outstanding channel.
 	rs__process_request_queue(conn);
 }

@@ -4,6 +4,7 @@
 
 #include <sys/socket.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -131,7 +132,7 @@ rs__udp_recv_cb(uv_udp_t *handle,
 			if (os->active && os->seq_num == seq_num) {
 				uv_buf_t buf_ = *buf;
 				buf_.len = nread;
-				rs__process_response(conn, os, &buf_);
+				rs__process_response(conn, os, buf_);
 				break;
 			}
 		}

@@ -4,6 +4,7 @@
 
 #include <sys/socket.h>
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -120,9 +121,12 @@ rs__process_request_queue(rs_conn_t *conn)
 	while (1) {
 		// Find a free outstanding channel
 		rs__outstanding_t *os = NULL;
-		for (i = 0; i < conn->n_outstanding; i++)
-			if (!conn->outstanding[i].active)
+		for (i = 0; i < conn->n_outstanding; i++) {
+			if (!conn->outstanding[i].active) {
 				os = &(conn->outstanding[i]);
+				break;
+			}
+		}
 		
 		// Find a request to send
 		rs__req_t *req = (rs__req_t *)rs__q_peek(conn->request_queue);

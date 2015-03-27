@@ -360,21 +360,21 @@ void rs__udp_send_cb(uv_udp_send_t *req, int status);
  * Called by rs__udp_recv_cb. Process an incoming SCP response.
  */
 void rs__process_response(rs_conn_t *conn, rs__outstanding_t *os,
-                          uv_buf_t *buf);
+                          uv_buf_t buf);
 
 
 /**
  * Called by rs__process_response. Process an incoming SCP packet response.
  */
 void rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
-                                     uv_buf_t *buf);
+                                     uv_buf_t buf);
 
 
 /**
  * Called by rs__process_response. Process an incoming read/write response.
  */
 void rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
-                             uv_buf_t *buf);
+                             uv_buf_t buf);
 
 
 /**
