@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 project("Rig SCP")
 
 # Set C99 mode
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -g")
 
 # Libuv compilation work-around https://github.com/joyent/libuv/issues/551
 if ( CMAKE_COMPILER_IS_GNUCC )
