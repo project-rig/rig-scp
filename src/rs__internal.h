@@ -149,6 +149,10 @@ typedef struct {
 	// The timeout timer handle
 	uv_timer_t timer_handle;
 	
+	// Flag indicating that the timer handle has been closed (and thus freeing can
+	// occur)
+	bool timer_handle_closed;
+	
 	// The data supplied to be supplied to the callback on completion of this
 	// request
 	void *cb_data;
@@ -217,6 +221,10 @@ struct rs_conn {
 	
 	// The UDP connection handle used for this connection
 	uv_udp_t udp_handle;
+	
+	// Flag indicating that the UDP connection handle has been closed (and thus
+	// freeing can occur)
+	bool udp_handle_closed;
 	
 	// Request queue containing rs__req_t entries representing SCP packets or bulk
 	// reads/writes which have not yet been handled.
@@ -368,5 +376,22 @@ void rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
 void rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
                              uv_buf_t *buf);
 
+
+/**
+ * Callback on closing the UDP handle.
+ *
+ * Simply used to attempt to complete the freeing process once this handle has
+ * been closed.
+ */
+void rs__udp_handle_closed_cb(uv_handle_t *handle);
+
+
+/**
+ * Callback on closing a timer handle.
+ *
+ * Simply used to attempt to complete the freeing process once this handle has
+ * been closed.
+ */
+void rs__timer_handle_closed_cb(uv_handle_t *handle);
 
 #endif

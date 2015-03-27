@@ -49,6 +49,7 @@ rs_init(uv_loop_t *loop,
 		free(conn);
 		return NULL;
 	}
+	conn->udp_handle_closed = false;
 	
 	// Pass a pointer to the SCP connection whenever UDP data arrives
 	conn->udp_handle.data = (void *)conn;
@@ -106,6 +107,7 @@ rs_init(uv_loop_t *loop,
 			free(conn);
 			return NULL;
 		}
+		conn->outstanding[i].timer_handle_closed = false;
 		
 		// Set the user data for UDP requests and timer ticks.
 		conn->outstanding[i].send_req.data = (void *)&(conn->outstanding[i]);
@@ -218,6 +220,25 @@ rs_read(rs_conn_t *conn,
 
 
 void
+rs__udp_handle_closed_cb(uv_handle_t *handle)
+{
+	rs_conn_t *conn = (rs_conn_t *)handle->data;
+	conn->udp_handle_closed = true;
+	rs_free(conn);
+}
+
+
+void
+rs__timer_handle_closed_cb(uv_handle_t *handle)
+{
+	rs__outstanding_t *os = (rs__outstanding_t *)handle->data;
+	os->timer_handle_closed = true;
+	rs_free(os->conn);
+}
+
+
+
+void
 rs_free(rs_conn_t *conn)
 {
 	int i;
@@ -229,20 +250,38 @@ rs_free(rs_conn_t *conn)
 	// Stop receiving data
 	uv_udp_recv_stop(&(conn->udp_handle));
 	
-	// Cancel all outstanding requests
-	for (i = 0; i < conn->n_outstanding; i++)
+	// Close the UDP handle
+	if (!uv_is_closing((uv_handle_t *)&(conn->udp_handle)))
+		uv_close((uv_handle_t *)&(conn->udp_handle), rs__udp_handle_closed_cb);
+	
+	for (i = 0; i < conn->n_outstanding; i++) {
+		// Cancel all outstanding requests
 		rs__cancel_outstanding(conn, &(conn->outstanding[i]), -1);
+		
+		// Close the timer handles
+		if (!uv_is_closing((uv_handle_t *)&(conn->outstanding[i].timer_handle)))
+			uv_close((uv_handle_t *)&(conn->outstanding[i].timer_handle),
+			         rs__timer_handle_closed_cb);
+	}
 	
 	// Cancel all remaining queued requests
 	rs__req_t *req;
 	while ((req = rs__q_remove(conn->request_queue)))
 		rs__cancel_queued(conn, req);
 	
-	// Check whether any UDP send requests are active (which require us to
-	// postpone the free since their handles would get freed too!)
-	for (i = 0; i < conn->n_outstanding; i++)
+	// Check whether any UDP send requests are active or timer handle closures
+	// (which require us to postpone the free since their handles would get freed
+	// too!)
+	for (i = 0; i < conn->n_outstanding; i++) {
 		if (conn->outstanding[i].send_req_active)
 			return;
+		if (!conn->outstanding[i].timer_handle_closed)
+			return;
+	}
+	
+	// Likewise with the UDP handle
+	if (!conn->udp_handle_closed)
+		return;
 	
 	// Everything has shut down, free all resources now!
 	for (i = 0; i < conn->n_outstanding; i++)

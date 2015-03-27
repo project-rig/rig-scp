@@ -26,16 +26,17 @@ rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os)
 	
 	if (++os->n_tries <= conn->n_tries) {
 		// Attempt to transmit
+		os->send_req_active = true;
 		if (uv_udp_send(&(os->send_req),
 		                &(conn->udp_handle),
 		                &(os->packet), 1,
 		                conn->addr,
 		                rs__udp_send_cb)) {
 			// Transmission failiure: clean up
+			os->send_req_active = false;
 			rs__cancel_outstanding(conn, os, -1);
 			return;
 		}
-		os->send_req_active = true;
 	} else {
 		// Maximum number of attempts made, fail and clean up.
 		rs__cancel_outstanding(conn, os, -1);
@@ -117,7 +118,10 @@ rs__udp_recv_cb(uv_udp_t *handle,
 	
 	int i;
 	
-	// Ignore anything which isn't long enough to be an SCP packet
+	// Ignore anything which isn't long enough to be an SCP packet. This also
+	// skips cases when the length is 0 meaning "no more data" or <0 meaning some
+	// kind of error has ocurred. Note that receive errors are rare and very
+	// difficult to interpret so we consider them safe to ignore.
 	if (nread >= RS__SIZEOF_SCP_PACKET(0, 0)) {
 		// Check to see if a packet with this sequence number is outstanding (if
 		// not, the packet is ignored too)
