@@ -26,6 +26,9 @@
  * Test parameters
  ******************************************************************************/
 
+// Fudge factor for timing tests (ms)
+#define FUDGE 50
+
 // Timeout (ms) for SCP connection in tests
 #define TIMEOUT 100
 
@@ -435,6 +438,120 @@ END_TEST
 
 
 /**
+ * Make sure packet timeout works on a single packet.
+ */
+START_TEST (test_single_scp_timeout)
+{
+	// Create a callback which we'll wait on for a reply
+	send_scp_cb_data_t cb_data;
+	wait_for_cb((cb_data_t *)&cb_data);
+	
+	// Create an empty payload
+	uv_buf_t data;
+	data.base = NULL;
+	data.len = 0;
+	
+	// Send the packet
+	ck_assert(!rs_send_scp(conn,
+	                       (0 << 8) | 0, // Never respond
+	                       0, // Send no duplicates
+	                       0, // An arbitrary cmd_rc
+	                       0, 0, 0, 0, 0, // No arguments
+	                       data,
+	                       data.len,
+	                       send_scp_cb, &cb_data));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that long enough for the timeout ocurred
+	ck_assert_int_ge(time_after - time_before, N_TRIES * TIMEOUT);
+	
+	// Check that the response came back once
+	ck_assert_uint_eq(cb_data.generic_info.n_calls, 1);
+	
+	// Check that the packet failed
+	ck_assert(cb_data.conn == conn);
+	ck_assert(cb_data.error);
+	ck_assert(cb_data.data.base == data.base);
+	ck_assert(cb_data.data.len == data.len);
+	
+	// Check that multiple requests with the same sequence number were sent to the
+	// mock machine and that it was as expected.
+	mm_req_t *req = mm_get_req(mm, 0);
+	ck_assert(req);
+	ck_assert(mm->reqs == req);
+	ck_assert(req->next == NULL);
+	ck_assert_uint_eq(req->n_changes, 1);
+	ck_assert_uint_eq(req->n_tries, N_TRIES);
+	ck_assert_uint_eq(req->buf.len, RS__SIZEOF_SCP_PACKET(0, 0));
+}
+END_TEST
+
+
+/**
+ * Make sure packet retransmission works.
+ */
+START_TEST (test_single_scp_retransmit)
+{
+	// Create a callback which we'll wait on for a reply
+	send_scp_cb_data_t cb_data;
+	wait_for_cb((cb_data_t *)&cb_data);
+	
+	// Create an empty payload
+	uv_buf_t data;
+	data.base = NULL;
+	data.len = 0;
+	
+	// Send the packet
+	ck_assert(!rs_send_scp(conn,
+	                       (1 << 8) | N_TRIES, // Respond after 1 msec and after
+	                                           // the maximum number of tries
+	                                           // before failure
+	                       0, // Send no duplicates
+	                       0, // An arbitrary cmd_rc
+	                       0, 0, 0, 0, 0, // No arguments
+	                       data,
+	                       data.len,
+	                       send_scp_cb, &cb_data));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that long enough for the attempts ocurred
+	ck_assert_int_ge(time_after - time_before, (N_TRIES - 1) * TIMEOUT);
+	
+	// Check that the response came back once
+	ck_assert_uint_eq(cb_data.generic_info.n_calls, 1);
+	
+	// Check that the packet eventually came back intact
+	ck_assert(cb_data.conn == conn);
+	ck_assert(!cb_data.error);
+	ck_assert_uint_eq(cb_data.cmd_rc, 0);
+	ck_assert_uint_eq(cb_data.n_args, 0);
+	ck_assert(cb_data.data.base == data.base);
+	ck_assert(cb_data.data.len == data.len);
+	
+	// Check that multiple requests with the same sequence number were sent to the
+	// mock machine and that it was as expected.
+	mm_req_t *req = mm_get_req(mm, 0);
+	ck_assert(req);
+	ck_assert(mm->reqs == req);
+	ck_assert(req->next == NULL);
+	ck_assert_uint_eq(req->n_changes, 1);
+	ck_assert_uint_eq(req->n_tries, N_TRIES);
+	ck_assert_uint_eq(req->buf.len, RS__SIZEOF_SCP_PACKET(0, 0));
+}
+END_TEST
+
+
+/**
  * Make sure that a single-packet read command can be sent and received.
  */
 START_TEST (test_single_packet_read)
@@ -514,7 +631,7 @@ END_TEST
 
 
 /**
- * Make sure that a single-packet write commands can be sent and received.
+ * Make sure that a single-packet write command can be sent and received.
  */
 START_TEST (test_single_packet_write)
 {
@@ -592,6 +709,470 @@ START_TEST (test_single_packet_write)
 END_TEST
 
 
+/**
+ * Make sure that if several packets are sent at once they are carried out in
+ * parallel. Also checks that duplicate response packets are ignored.
+ */
+START_TEST (test_multiple_scp)
+{
+	// Number parallel rounds worth of packets to send
+	const unsigned int n_rounds = 3;
+	
+	// Number of packets to send at once
+	const unsigned int n_packets = N_OUTSTANDING * n_rounds;
+	
+	unsigned int i;
+	
+	// Create an empty payload
+	uv_buf_t data;
+	data.base = NULL;
+	data.len = 0;
+	
+	// Create a set of callbacks which we'll wait on for replies
+	send_scp_cb_data_t cb_data[n_packets];
+	for (i = 0; i < n_packets; i++)
+		wait_for_cb((cb_data_t *)&(cb_data[i]));
+	
+	// Send lots of packets at once
+	for (i = 0; i < n_packets; i++)
+		ck_assert(!rs_send_scp(conn,
+		                       (TIMEOUT/2 << 8) | 1, // Respond after half the
+		                                             // timeout.
+		                       3, // Send some duplicates
+		                       0, // An arbitrary cmd_rc
+		                       1, 1, i, 0, 0, // The packet num as an argument
+		                       data,
+		                       data.len,
+		                       send_scp_cb, &(cb_data[i])));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that the time required was such that it would only be possible of
+	// multiple commands were sent in parallel.
+	ck_assert_int_lt(time_after - time_before, (TIMEOUT/2) * n_rounds + FUDGE);
+	
+	for (i = 0; i < n_packets; i++) {
+		// Check that the responses came back once
+		ck_assert_uint_eq(cb_data[i].generic_info.n_calls, 1);
+		
+		// Check that the packet didn't fail and has the right argument
+		ck_assert(cb_data[i].conn == conn);
+		ck_assert(!cb_data[i].error);
+		ck_assert_uint_eq(cb_data[i].cmd_rc, 0);
+		ck_assert_uint_eq(cb_data[i].n_args, 1);
+		ck_assert_uint_eq(cb_data[i].arg1, i);
+		ck_assert(cb_data[i].data.base == data.base);
+		ck_assert(cb_data[i].data.len == data.len);
+		
+		// Check that one request the relevent sequence number was sent to the mock
+		// machine and that it was as expected.
+		mm_req_t *req = mm_get_req(mm, i);
+		ck_assert(req);
+		ck_assert_uint_eq(req->n_changes, 1);
+		ck_assert_uint_eq(req->n_tries, 1);
+		ck_assert_uint_eq(req->buf.len, RS__SIZEOF_SCP_PACKET(1, 0));
+	}
+}
+END_TEST
+
+
+/**
+ * Make sure that a multi-packet read command can be sent and received. Also
+ * checks that duplicate response packets are ignored.
+ */
+START_TEST (test_multiple_packet_read)
+{
+	// Offset for the data in memory
+	const size_t offset = 10;
+	
+	// Number parallel rounds worth of packets to send
+	const unsigned int n_rounds = 3;
+	
+	// Number of packets to send
+	const size_t n_packets = n_rounds * N_OUTSTANDING;
+	
+	// Length of the read request selected to require the specified number of
+	// rounds, with the last round being half-length
+	const size_t length = (MM_SCP_DATA_LENGTH * n_packets)
+	                      - MM_SCP_DATA_LENGTH / 2;
+	
+	size_t i;
+	
+	// Set up some fake data to read back
+	mm_rw_t *rw = mm_get_rw(mm, 0);
+	for (i = 0; i < length; i++) {
+		rw->data[offset + i] = (unsigned char)i;
+	}
+	
+	// Create a callback which we'll wait on for a reply
+	rw_cb_data_t cb_data;
+	wait_for_cb((cb_data_t *)&cb_data);
+	
+	// Set a buffer to hold the read data
+	unsigned char data_buf[length];
+	uv_buf_t data;
+	data.base = (void *)data_buf;
+	data.len = length;
+	
+	uint32_t addr = (offset |  // Start at the given offset
+	                 0u<<10 |  // The RW ID
+	                 255u<<16 | // No errors
+	                 255u<<24); // Respond to all the same speed
+	
+	// Send the packet
+	ck_assert(!rs_read(conn,
+	                   (TIMEOUT/2 << 8) | 1, // Respond after half the timeout
+	                   3, // Send some duplicates
+	                   addr,
+	                   data,
+	                   rw_cb, &cb_data));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that the time required was such that it would only be possible of
+	// multiple commands were sent in parallel.
+	ck_assert_int_lt(time_after - time_before, (TIMEOUT/2) * n_rounds + FUDGE);
+	
+	// Check that the response came back once
+	ck_assert_uint_eq(cb_data.generic_info.n_calls, 1);
+	
+	// Check the right number of requests were sent
+	ck_assert_uint_eq(rw->n_responses_sent, n_packets);
+	
+	// Check that only the expected data was read, and it was read once.
+	for (i = 0; i < MM_MAX_RW; i++) {
+		if (i >= offset && i < offset + length)
+			ck_assert_uint_eq(rw->read_count[i], 1);
+		else
+			ck_assert_uint_eq(rw->read_count[i], 0);
+		
+		ck_assert_uint_eq(rw->write_count[i], 0);
+	}
+	
+	// Check the data read is as expected
+	ck_assert(cb_data.conn == conn);
+	ck_assert(!cb_data.error);
+	ck_assert(cb_data.data.base == data.base);
+	ck_assert(cb_data.data.len == data.len);
+	ck_assert(memcmp(cb_data.data.base, rw->data + offset, data.len) == 0);
+}
+END_TEST
+
+
+/**
+ * Make sure that a multi-packet write command can be sent and received. Also
+ * checks that duplicate response packets are ignored.
+ */
+START_TEST (test_multiple_packet_write)
+{
+	// Offset for the data in memory
+	const size_t offset = 10;
+	
+	// Number parallel rounds worth of packets to send
+	const unsigned int n_rounds = 3;
+	
+	// Number of packets to send
+	const size_t n_packets = n_rounds * N_OUTSTANDING;
+	
+	// Length of the read request selected to require the specified number of
+	// rounds, with the last round being half-length
+	const size_t length = (MM_SCP_DATA_LENGTH * n_packets)
+	                      - MM_SCP_DATA_LENGTH / 2;
+	
+	size_t i;
+	
+	// Get a reference to the memory block we're going to write to
+	mm_rw_t *rw = mm_get_rw(mm, 0);
+	
+	// Create a callback which we'll wait on for a reply
+	rw_cb_data_t cb_data;
+	wait_for_cb((cb_data_t *)&cb_data);
+	
+	// Set a buffer with some dummy data to write
+	unsigned char data_buf[length];
+	for (i = 0; i < length; i++)
+		data_buf[i] = (unsigned char)i;
+	uv_buf_t data;
+	data.base = (void *)data_buf;
+	data.len = length;
+	
+	// Send the packet
+	uint32_t addr = (offset |  // Start at the given offset
+	                 0u<<10 |  // The RW ID
+	                 255u<<16 | // No errors
+	                 255u<<24); // Respond to all the same speed
+	ck_assert(!rs_write(conn,
+	                    (TIMEOUT/2 << 8) | 1, // Respond after half the timeout
+	                    3, // Send some duplicates
+	                    addr,
+	                    data,
+	                    rw_cb, &cb_data));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that the time required was such that it would only be possible of
+	// multiple commands were sent in parallel.
+	ck_assert_int_lt(time_after - time_before, (TIMEOUT/2) * n_rounds + FUDGE);
+	
+	// Check that the response came back once
+	ck_assert_uint_eq(cb_data.generic_info.n_calls, 1);
+	
+	// Check the right number of packets were used
+	ck_assert_uint_eq(rw->n_responses_sent, n_packets);
+	
+	// Check that only the expected data was written, and it was written once.
+	for (i = 0; i < MM_MAX_RW; i++) {
+		if (i >= offset && i < offset + length)
+			ck_assert_uint_eq(rw->write_count[i], 1);
+		else
+			ck_assert_uint_eq(rw->write_count[i], 0);
+		
+		ck_assert_uint_eq(rw->read_count[i], 0);
+	}
+	
+	// Check the data written was correct
+	ck_assert(memcmp(rw->data + offset, data_buf, data.len) == 0);
+	
+	// Check the response is as expected
+	ck_assert(cb_data.conn == conn);
+	ck_assert(!cb_data.error);
+	ck_assert(cb_data.data.base == data.base);
+	ck_assert(cb_data.data.len == data.len);
+}
+END_TEST
+
+
+/**
+ * Make sure that when multiple outstanding channels are available, a single
+ * blocked packet can't block the rest.
+ */
+START_TEST (test_non_obstructing)
+{
+	// Number of packets to send at once (the first of which will be blocked).
+	// This number is chosen such that the blocked packet will take as long to
+	// timeout as the rest take to go through the remaining unblocked channels.
+	const unsigned int n_packets = (N_TRIES*2*(N_OUTSTANDING - 1)) + 1;
+	
+	unsigned int i;
+	
+	// Create an empty payload
+	uv_buf_t data;
+	data.base = NULL;
+	data.len = 0;
+	
+	// Create a set of callbacks which we'll wait on for replies
+	send_scp_cb_data_t cb_data[n_packets];
+	for (i = 0; i < n_packets; i++)
+		wait_for_cb((cb_data_t *)&(cb_data[i]));
+	
+	// Send lots of packets at once
+	for (i = 0; i < n_packets; i++)
+		ck_assert(!rs_send_scp(conn,
+		                       (TIMEOUT/2 << 8) | (i!=0), // Respond after half the
+		                                                  // timeout except for the
+		                                                  // first packet which will
+		                                                  // never respond.
+		                       0, // Send no duplicates
+		                       0, // An arbitrary cmd_rc
+		                       1, 1, i, 0, 0, // The packet num as an argument
+		                       data,
+		                       data.len,
+		                       send_scp_cb, &(cb_data[i])));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that the time required was such that it would only be possible for
+	// all packets to have got through if the blocked packet didn't block everyone
+	// else.
+	ck_assert_int_lt(time_after - time_before, TIMEOUT*N_TRIES + FUDGE);
+	
+	for (i = 0; i < n_packets; i++) {
+		// Check that the responses came back once
+		ck_assert_uint_eq(cb_data[i].generic_info.n_calls, 1);
+		
+		// Check that the packet didn't fail and has the right argument
+		ck_assert(cb_data[i].conn == conn);
+		if (i == 0) {
+			ck_assert(cb_data[i].error);
+		} else {
+			ck_assert(!cb_data[i].error);
+			ck_assert_uint_eq(cb_data[i].cmd_rc, 0);
+			ck_assert_uint_eq(cb_data[i].n_args, 1);
+			ck_assert_uint_eq(cb_data[i].arg1, i);
+		}
+		ck_assert(cb_data[i].data.base == data.base);
+		ck_assert(cb_data[i].data.len == data.len);
+	}
+}
+END_TEST
+
+
+/**
+ * Make sure that a read command fails if things time out
+ */
+START_TEST (test_read_timeout)
+{
+	// Offset for the data in memory
+	const size_t offset = 10;
+	
+	// Number parallel rounds worth of packets to send
+	const unsigned int n_rounds = 5;
+	
+	// Number of packets to send
+	const size_t n_packets = n_rounds * N_OUTSTANDING;
+	
+	// Length of the read request selected to require the specified number of
+	// rounds, with the last round being half-length
+	const size_t length = (MM_SCP_DATA_LENGTH * n_packets)
+	                      - MM_SCP_DATA_LENGTH / 2;
+	
+	size_t i;
+	
+	// Set up some fake data to read back
+	mm_rw_t *rw = mm_get_rw(mm, 0);
+	for (i = 0; i < length; i++) {
+		rw->data[offset + i] = (unsigned char)i;
+	}
+	
+	// Create a callback which we'll wait on for a reply
+	rw_cb_data_t cb_data;
+	wait_for_cb((cb_data_t *)&cb_data);
+	
+	// Set a buffer to hold the read data
+	unsigned char data_buf[length];
+	uv_buf_t data;
+	data.base = (void *)data_buf;
+	data.len = length;
+	
+	uint32_t addr = (offset |  // Start at the given offset
+	                 0u<<10 |  // The RW ID
+	                 255u<<16 | // No errors
+	                 3u<<24);  // Start timing out on the 4th packet
+	
+	// Send the packet
+	ck_assert(!rs_read(conn,
+	                   (0 << 8) | 0, // Never reply (after 3rd packet)
+	                   0, // Send no duplicates
+	                   addr,
+	                   data,
+	                   rw_cb, &cb_data));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that the time required was such that most of the read must have
+	// been cancelled.
+	ck_assert_int_lt(time_after - time_before, TIMEOUT * N_TRIES + FUDGE);
+	
+	// Check that the response came back once
+	ck_assert_uint_eq(cb_data.generic_info.n_calls, 1);
+	
+	// Check the right number of responses were sent
+	ck_assert_uint_eq(rw->n_responses_sent, 4);
+	
+	// Check the read failed
+	ck_assert(cb_data.conn == conn);
+	ck_assert(cb_data.error);
+	ck_assert(cb_data.data.base == data.base);
+	ck_assert(cb_data.data.len == data.len);
+}
+END_TEST
+
+
+/**
+ * Make sure that a read command fails if an error is returned on one of the
+ * packets.
+ */
+START_TEST (test_read_fail)
+{
+	// Offset for the data in memory
+	const size_t offset = 10;
+	
+	// Number parallel rounds worth of packets to send
+	const unsigned int n_rounds = 5;
+	
+	// Number of packets to send
+	const size_t n_packets = n_rounds * N_OUTSTANDING;
+	
+	// Length of the read request selected to require the specified number of
+	// rounds, with the last round being half-length
+	const size_t length = (MM_SCP_DATA_LENGTH * n_packets)
+	                      - MM_SCP_DATA_LENGTH / 2;
+	
+	size_t i;
+	
+	// Set up some fake data to read back
+	mm_rw_t *rw = mm_get_rw(mm, 0);
+	for (i = 0; i < length; i++) {
+		rw->data[offset + i] = (unsigned char)i;
+	}
+	
+	// Create a callback which we'll wait on for a reply
+	rw_cb_data_t cb_data;
+	wait_for_cb((cb_data_t *)&cb_data);
+	
+	// Set a buffer to hold the read data
+	unsigned char data_buf[length];
+	uv_buf_t data;
+	data.base = (void *)data_buf;
+	data.len = length;
+	
+	uint32_t addr = (offset |  // Start at the given offset
+	                 0u<<10 |  // The RW ID
+	                 3u<<16 |  // Return an error on the 4th reply
+	                 255u<<24); // Respond to all the same speed
+	
+	// Send the packet
+	ck_assert(!rs_read(conn,
+	                   (0 << 8) | 1, // Always reply instantly
+	                   0, // Send no duplicates
+	                   addr,
+	                   data,
+	                   rw_cb, &cb_data));
+	
+	// Wait for a reply
+	uv_update_time(loop);
+	uint64_t time_before = uv_now(loop);
+	ck_assert(!wait_for_all_cb());
+	uint64_t time_after = uv_now(loop);
+	
+	// Check that the time required was such that most of the read must have
+	// been cancelled.
+	ck_assert_int_lt(time_after - time_before, FUDGE);
+	
+	// Check that the response came back once
+	ck_assert_uint_eq(cb_data.generic_info.n_calls, 1);
+	
+	// Check the right number of responses were sent
+	ck_assert_uint_eq(rw->n_responses_sent, 4);
+	
+	// Check the read failed
+	ck_assert(cb_data.conn == conn);
+	ck_assert(cb_data.error);
+	ck_assert(cb_data.data.base == data.base);
+	ck_assert(cb_data.data.len == data.len);
+}
+END_TEST
+
 
 
 Suite *
@@ -604,8 +1185,17 @@ make_rig_scp_suite(void)
 	tcase_add_checked_fixture(tc_core, setup, teardown);
 	tcase_add_test(tc_core, test_empty);
 	tcase_add_loop_test(tc_core, test_single_scp, 0, 4);
+	tcase_add_test(tc_core, test_single_scp_timeout);
+	tcase_add_test(tc_core, test_single_scp_retransmit);
 	tcase_add_loop_test(tc_core, test_single_packet_read, 0, 4);
 	tcase_add_loop_test(tc_core, test_single_packet_write, 0, 4);
+	tcase_add_test(tc_core, test_multiple_scp);
+	tcase_add_test(tc_core, test_multiple_packet_read);
+	tcase_add_test(tc_core, test_multiple_packet_write);
+	tcase_add_test(tc_core, test_non_obstructing);
+	tcase_add_test(tc_core, test_read_timeout);
+	tcase_add_test(tc_core, test_read_fail);
+	
 	
 	// Add each test case to the suite
 	suite_add_tcase(s, tc_core);

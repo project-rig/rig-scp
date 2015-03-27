@@ -221,10 +221,12 @@ mm_get_req(mm_t *mm, uint16_t seq_num)
 {
 	// Try to find an existing request
 	mm_req_t *req = mm->reqs;
-	while (req)
+	while (req) {
 		if (req->seq_num == seq_num) {
 			return req;
 		}
+		req = req->next;
+	}
 	
 	// Make a new one
 	req = malloc(sizeof(mm_req_t));
@@ -250,9 +252,11 @@ mm_get_rw(mm_t *mm, unsigned int id)
 {
 	// Try to find an existing request
 	mm_rw_t *rw = mm->rws;
-	while (rw)
+	while (rw) {
 		if (rw->id == id)
 			return rw;
+		rw = rw->next;
+	}
 	
 	// Make a new one
 	rw = malloc(sizeof(mm_rw_t));

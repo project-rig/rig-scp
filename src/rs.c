@@ -59,6 +59,7 @@ rs_init(uv_loop_t *loop,
 	                      rs__udp_recv_alloc_cb,
 	                      rs__udp_recv_cb)) {
 		// Listening failed
+		// XXX: Doesn't close UDP handle before freeing!
 		free(conn);
 		return NULL;
 	}
@@ -68,6 +69,7 @@ rs_init(uv_loop_t *loop,
 	conn->request_queue = rs__q_init(sizeof(rs__req_t));
 	if (!conn->request_queue) {
 		// Queue allocation failed!
+		// XXX: Doesn't close UDP handle before freeing!
 		free(conn);
 		return NULL;
 	}
@@ -76,6 +78,7 @@ rs_init(uv_loop_t *loop,
 	conn->outstanding = calloc(conn->n_outstanding, sizeof(rs__outstanding_t));
 	if (!conn->outstanding) {
 		rs__q_free(conn->request_queue);
+		// XXX: Doesn't close UDP handle before freeing!
 		free(conn);
 		return NULL;
 	}
@@ -102,6 +105,7 @@ rs_init(uv_loop_t *loop,
 		if (uv_timer_init(conn->loop, &(conn->outstanding[i].timer_handle))) {
 			// Timer init failed, cleanup
 			while (i >= 0)
+				// XXX: Doesn't close timer handles before freeing!
 				free(conn->outstanding[i--].packet.base);
 			rs__q_free(conn->request_queue);
 			free(conn);

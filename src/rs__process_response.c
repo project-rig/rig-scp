@@ -81,10 +81,11 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 	
 	// Determine if this is the last outstanding command in the request.
 	bool last_outstanding = true;
-	// Look for any outstanding commands which are part of this request which are
-	// still active.
+	// Look for any *other* outstanding commands which are part of this request
+	// which are still active.
 	for (i = 0; i < conn->n_outstanding; i++) {
-		if (conn->outstanding[i].active &&
+		if (&(conn->outstanding[i]) != os &&
+		    conn->outstanding[i].active &&
 		    conn->outstanding[i].type == os->type &&
 		    conn->outstanding[i].data.rw.id == os->data.rw.id) {
 			last_outstanding = false;
@@ -112,9 +113,6 @@ rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t buf)
 	// Stop the timeout timer
 	uv_timer_stop(&(os->timer_handle));
 	
-	// Mark this outstanding channel as inactive again.
-	os->active = false;
-	
 	// Deal with the packet depending on its type
 	switch (os->type) {
 		case RS__REQ_SCP_PACKET:
@@ -127,6 +125,8 @@ rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t buf)
 			break;
 	}
 	
-	// Trigger queue processing since we just freed up an outstanding channel.
+	// Mark this outstanding channel as inactive again and trigger queue
+	// processing since we just freed up an outstanding channel.
+	os->active = false;
 	rs__process_request_queue(conn);
 }
