@@ -7,5 +7,6 @@
 #include <check.h>
 
 Suite *make_queue_suite(void);
+Suite *make_scp_suite(void);
 
 #endif

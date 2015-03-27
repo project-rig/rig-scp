@@ -1,5 +1,5 @@
 /**
- * Test suite for Rig SCP's request/response queue.
+ * Test the request queue implementation.
  */
 
 #include <check.h>

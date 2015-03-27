@@ -18,6 +18,7 @@ main(int argc, char *argv[])
 	
 	// Add all suites
 	srunner_add_suite(sr, make_queue_suite());
+	srunner_add_suite(sr, make_scp_suite());
 	
 	// Run the tests
 	srunner_run_all(sr, CK_NORMAL);
