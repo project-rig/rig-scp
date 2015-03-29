@@ -24,6 +24,7 @@ rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
 	// Unpack the packet
 	uint16_t cmd_rc;
 	uint16_t seq_num;
+	unsigned int n_args = os->data.scp_packet.n_args_recv;
 	uint32_t arg1;
 	uint32_t arg2;
 	uint32_t arg3;
@@ -31,7 +32,7 @@ rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
 	rs__unpack_scp_packet(buf,
 	                      &cmd_rc,
 	                      &seq_num,
-	                      os->data.scp_packet.n_args_recv,
+	                      &n_args,
 	                      &arg1, &arg2, &arg3,
 	                      &data);
 	
@@ -43,7 +44,7 @@ rs__process_response_scp_packet(rs_conn_t *conn, rs__outstanding_t *os,
 	// Call the user's callback
 	os->data.scp_packet.cb(conn, false,
 	                       cmd_rc,
-	                       os->data.scp_packet.n_args_recv,
+	                       n_args,
 	                       arg1, arg2, arg3,
 	                       os->data.scp_packet.data,
 	                       os->cb_data);
@@ -57,13 +58,14 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 	int i;
 	
 	// Unpack the packet
+	unsigned int n_args = 0;
 	uint16_t cmd_rc;
 	uint16_t seq_num;
 	uv_buf_t data;
 	rs__unpack_scp_packet(buf,
 	                      &cmd_rc,
 	                      &seq_num,
-	                      0, NULL, NULL, NULL,
+	                      &n_args, NULL, NULL, NULL,
 	                      &data);
 	
 	// Check the response was OK and fail if not

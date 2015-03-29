@@ -111,13 +111,15 @@ START_TEST (test_unpack_scp_packet)
 	buf.len = packet_no_arg_no_data_len;
 	
 	// Ensure that all fields are unpacked correctly
+	unsigned int n_args = 0;
 	uint16_t cmd_rc = 0;
 	uint16_t seq_num = 0;
 	uv_buf_t data;
 	rs__unpack_scp_packet(buf,
 	                      &cmd_rc, &seq_num,
-	                      0, NULL, NULL, NULL,
+	                      &n_args, NULL, NULL, NULL,
 	                      &data);
+	ck_assert_uint_eq(n_args, 0);
 	ck_assert_uint_eq(cmd_rc, 0xDEAD);
 	ck_assert_uint_eq(seq_num, 0xBEEF);
 	ck_assert_uint_eq(data.len, 0);
@@ -128,12 +130,14 @@ START_TEST (test_unpack_scp_packet)
 	
 	// Ensure that if more arguments are requested than provided the command
 	// doesn't read them.
+	n_args = 3;
 	cmd_rc = 0;
 	seq_num = 0;
 	rs__unpack_scp_packet(buf,
 	                      &cmd_rc, &seq_num,
-	                      3, NULL, NULL, NULL,
+	                      &n_args, NULL, NULL, NULL,
 	                      &data);
+	ck_assert_uint_eq(n_args, 0);
 	ck_assert_uint_eq(cmd_rc, 0xDEAD);
 	ck_assert_uint_eq(seq_num, 0xBEEF);
 	ck_assert_uint_eq(data.len, 0);
@@ -148,6 +152,7 @@ START_TEST (test_unpack_scp_packet)
 	buf.len = packet_len;
 	
 	// Ensure that all fields are unpacked correctly
+	n_args = 3;
 	cmd_rc = 0;
 	seq_num = 0;
 	uint32_t arg1 = 0;
@@ -155,8 +160,9 @@ START_TEST (test_unpack_scp_packet)
 	uint32_t arg3 = 0;
 	rs__unpack_scp_packet(buf,
 	                      &cmd_rc, &seq_num,
-	                      3, &arg1, &arg2, &arg3,
+	                      &n_args, &arg1, &arg2, &arg3,
 	                      &data);
+	ck_assert_uint_eq(n_args, 3);
 	ck_assert_uint_eq(cmd_rc, 0xDEAD);
 	ck_assert_uint_eq(seq_num, 0xBEEF);
 	ck_assert_uint_eq(arg1, 0x11213141);
@@ -172,6 +178,7 @@ START_TEST (test_unpack_scp_packet)
 	
 	// Ensure that all fields are unpacked correctly when a different number of
 	// arguments is supplied.
+	n_args = 2;
 	cmd_rc = 0;
 	seq_num = 0;
 	arg1 = 0;
@@ -179,8 +186,9 @@ START_TEST (test_unpack_scp_packet)
 	arg3 = 0;
 	rs__unpack_scp_packet(buf,
 	                      &cmd_rc, &seq_num,
-	                      2, &arg1, &arg2, NULL,
+	                      &n_args, &arg1, &arg2, NULL,
 	                      &data);
+	ck_assert_uint_eq(n_args, 2);
 	ck_assert_uint_eq(cmd_rc, 0xDEAD);
 	ck_assert_uint_eq(seq_num, 0xBEEF);
 	ck_assert_uint_eq(arg1, 0x11213141);

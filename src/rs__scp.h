@@ -104,13 +104,16 @@ uint16_t rs__unpack_scp_packet_seq_num(uv_buf_t buf);
 /**
  * Unpack an SCP packet from a buffer.
  *
- * Warning: Does not check that the buffer is long enough! It is the caller's
- * responsibility to check that the packet is long enough to be an SCP packet.
+ * Warning: It is the caller's responsibility to check that the packet is at
+ * least long enough to be an SCP packet with no arguments and no payload (i.e.
+ * buf.len >= RS__SIZEOF_SCP_PACKET(0, 0)).
  *
  * @param buf The buffer containing the packet.
  * @param cmd_rc The SCP command/response code.
  * @param seq_num The sequence number of the packet
- * @param n_args The number of arguments to unpack.
+ * @param n_args Input: the ideal number of arguments to unpack, output: the
+ *               number of arguments actually unpacked (may be less if the input
+ *               packet is too short).
  * @param arg1 Argument 1
  * @param arg2 Argument 2
  * @param arg3 Argument 3
@@ -120,7 +123,7 @@ uint16_t rs__unpack_scp_packet_seq_num(uv_buf_t buf);
 void rs__unpack_scp_packet(uv_buf_t buf,
                            uint16_t *cmd_rc,
                            uint16_t *seq_num,
-                           unsigned int n_args,
+                           unsigned int *n_args,
                            uint32_t *arg1,
                            uint32_t *arg2,
                            uint32_t *arg3,

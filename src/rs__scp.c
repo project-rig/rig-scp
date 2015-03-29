@@ -102,7 +102,7 @@ void
 rs__unpack_scp_packet(uv_buf_t buf,
                       uint16_t *cmd_rc,
                       uint16_t *seq_num,
-                      unsigned int n_args,
+                      unsigned int *n_args,
                       uint32_t *arg1,
                       uint32_t *arg2,
                       uint32_t *arg3,
@@ -116,23 +116,23 @@ rs__unpack_scp_packet(uv_buf_t buf,
 	
 	// Truncate n_args if the packet is too short
 	if (buf.len <= RS__SIZEOF_SCP_PACKET(0, 0))
-		n_args = 0;
+		*n_args = 0;
 	else if (buf.len <= RS__SIZEOF_SCP_PACKET(1, 0))
-		n_args = 1;
+		*n_args = 1;
 	else if (buf.len <= RS__SIZEOF_SCP_PACKET(2, 0))
-		n_args = 2;
+		*n_args = 2;
 	else if (buf.len <= RS__SIZEOF_SCP_PACKET(3, 0))
-		n_args = 3;
+		*n_args = 3;
 	
 	// Unpack arguments (if present)
-	if (n_args >= 1)
+	if (*n_args >= 1)
 		*arg1 = header->arg1;
-	if (n_args >= 2)
+	if (*n_args >= 2)
 		*arg2 = header->arg2;
-	if (n_args >= 3)
+	if (*n_args >= 3)
 		*arg3 = header->arg3;
 	
 	// Setup the pointers to the data
-	data->base = buf.base + RS__SIZEOF_SCP_PACKET(n_args, 0);
-	data->len = buf.len - RS__SIZEOF_SCP_PACKET(n_args, 0);
+	data->base = buf.base + RS__SIZEOF_SCP_PACKET(*n_args, 0);
+	data->len = buf.len - RS__SIZEOF_SCP_PACKET(*n_args, 0);
 }
