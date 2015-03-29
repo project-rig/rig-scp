@@ -25,11 +25,13 @@ typedef struct rs_conn rs_conn_t;
  * Callback function type for rs_send_scp commands.
  *
  * @param conn The SCP connection through which the packet was sent.
- * @param error False if a response was returned (e.g. no timeout ocurred).
- *              Note that the user is responsible for checking cmd_rc to check
- *              if the return code indicates an error occurred. If false, all
- *              packet related fields have undefined values and the data buffer
- *              will contain undefined data.
+ * @param error 0 if a response was successfuly received.  Note that the user is
+ *              responsible for checking cmd_rc to check if the return code
+ *              indicates an error occurred. If non-zero, all packet related
+ *              fields have undefined values and the data buffer will contain
+ *              undefined data. The rs_err_name and rs_strerror functions can be
+ *              used to yield a human-readable error message. Negative errors
+ *              correspond with libuv errors, positive errors with Rig SCP.
  * @param cmd_rc The command return code recieved in response to an SCP packet.
  * @param n_args The number of arguments decoded (as indicated when sending the
  *               packet). Arguments not decoded will have undefined values.
@@ -40,7 +42,7 @@ typedef struct rs_conn rs_conn_t;
  * @param cb_data The pointer suplied when registering the callback.
  */
 typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
-                               bool error,
+                               int error,
                                uint16_t cmd_rc,
                                unsigned int n_args,
                                uint32_t arg1,
@@ -54,18 +56,20 @@ typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
  * Callback function type for rs_read/rs_write command completion.
  *
  * @param conn The SCP connection through which the packet was sent.
- * @param error True if anything went wrong during the write. For example, any
- *              packet timed out or recieved a response which was not RC_OK.
- * @param cmd_rc If error is true, this field will be the cmd_rc returned in the
- *               first bad reply to arrive. If the command failed due to a
- *               timeout or other error, this field will be -1. If error is
- *               false, the value of this argument is undefined.
- * @param data The buffer containing the read data or written data, unchanged
- *             for read and write commands, respectively.
+ * @param error 0 if a response was successfuly received. If non-zero, the read
+ *              data buffer's contents will be undefined. The rs_err_name and
+ *              rs_strerror functions can be used to yield a human-readable
+ *              error message. Negative errors correspond with libuv errors,
+ *              positive errors with Rig SCP.
+ * @param cmd_rc If error is RS_EBAD_RC, this field will be the cmd_rc returned
+ *               in the first bad reply to arrive. If error is 0, the value of
+ *               this argument is undefined.
+ * @param data The buffer containing the read data or written data unchanged
+ *             for read and write commands respectively.
  * @param cb_data The pointer suplied when registering the callback.
  */
 typedef void (*rs_rw_cb)(rs_conn_t *conn,
-                         bool error,
+                         int error,
                          uint16_t cmd_rc,
                          uv_buf_t data,
                          void *cb_data);
@@ -195,5 +199,35 @@ int rs_read(rs_conn_t *conn,
  * running the libuv event loop.
  */
 void rs_free(rs_conn_t *conn);
+
+
+/**
+ * Error number returned when a read or write command receives a bad response.
+ */
+#define RS_EBAD_RC 1
+
+
+/**
+ * Error number returned when an SCP command has timed out n_tries times.
+ */
+#define RS_ETIMEOUT 2
+
+
+/**
+ * Error number returned when rs_free has been called.
+ */
+#define RS_EFREE 3
+
+
+/**
+ * Returns the error message for the given error code.
+ */
+const char *rs_strerror(int err);
+
+
+/**
+ * Returns the error name for the given error code.
+ */
+const char *rs_err_name(int err);
 
 #endif

@@ -244,7 +244,7 @@ struct send_scp_cb_data {
 	
 	// Store a copy of the arguments supplied
 	rs_conn_t *conn;
-	bool error;
+	int error;
 	uint16_t cmd_rc;
 	unsigned int n_args;
 	uint32_t arg1;
@@ -256,7 +256,7 @@ struct send_scp_cb_data {
 
 void
 send_scp_cb(rs_conn_t *conn,
-            bool error,
+            int error,
             uint16_t cmd_rc,
             unsigned int n_args,
             uint32_t arg1,
@@ -291,7 +291,7 @@ struct rw_cb_data {
 	
 	// Store a copy of the arguments supplied
 	rs_conn_t *conn;
-	bool error;
+	int error;
 	uint16_t cmd_rc;
 	uv_buf_t data;
 };
@@ -299,7 +299,7 @@ struct rw_cb_data {
 
 void
 rw_cb(rs_conn_t *conn,
-      bool error,
+      int error,
       uint16_t cmd_rc,
       uv_buf_t data,
       void *cb_data)
@@ -475,7 +475,7 @@ START_TEST (test_single_scp_timeout)
 	
 	// Check that the packet failed
 	ck_assert(cb_data.conn == conn);
-	ck_assert(cb_data.error);
+	ck_assert(cb_data.error == RS_ETIMEOUT);
 	ck_assert(cb_data.data.base == data.base);
 	ck_assert(cb_data.data.len == data.len);
 	
@@ -1009,7 +1009,7 @@ START_TEST (test_non_obstructing)
 		// Check that the packet didn't fail and has the right argument
 		ck_assert(cb_data[i].conn == conn);
 		if (i == 0) {
-			ck_assert(cb_data[i].error);
+			ck_assert(cb_data[i].error == RS_ETIMEOUT);
 		} else {
 			ck_assert(!cb_data[i].error);
 			ck_assert_uint_eq(cb_data[i].cmd_rc, 0);
@@ -1091,7 +1091,7 @@ START_TEST (test_read_timeout)
 	
 	// Check the read failed
 	ck_assert(cb_data.conn == conn);
-	ck_assert(cb_data.error);
+	ck_assert(cb_data.error == RS_ETIMEOUT);
 	ck_assert(cb_data.data.base == data.base);
 	ck_assert(cb_data.data.len == data.len);
 }
@@ -1167,7 +1167,8 @@ START_TEST (test_read_fail)
 	
 	// Check the read failed
 	ck_assert(cb_data.conn == conn);
-	ck_assert(cb_data.error);
+	ck_assert(cb_data.error == RS_EBAD_RC);
+	ck_assert(cb_data.cmd_rc == 0);
 	ck_assert(cb_data.data.base == data.base);
 	ck_assert(cb_data.data.len == data.len);
 }

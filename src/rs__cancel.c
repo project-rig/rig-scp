@@ -15,7 +15,8 @@
 
 
 void
-rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os, uint16_t cmd_rc)
+rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
+                       int error, uint16_t cmd_rc)
 {
 	int i;
 	
@@ -66,14 +67,14 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os, uint16_t cmd_rc)
 	if (!others_to_cancel) {
 		switch (os->type) {
 			case RS__REQ_SCP_PACKET:
-				os->data.scp_packet.cb(conn, true,
+				os->data.scp_packet.cb(conn, error,
 				                       cmd_rc, 0, 0, 0, 0, os->data.scp_packet.data,
 				                       os->cb_data);
 				break;
 			
 			case RS__REQ_READ:
 			case RS__REQ_WRITE:
-				os->data.rw.cb(conn, true,
+				os->data.rw.cb(conn, error,
 				               cmd_rc, os->data.rw.orig_data,
 				               os->cb_data);
 				break;
@@ -93,7 +94,7 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os, uint16_t cmd_rc)
 			    other_os->type == os->type &&
 			    // Skip reads/writes which aren't part of the same request
 			    other_os->data.rw.id == os->data.rw.id) {
-				rs__cancel_outstanding(conn, other_os, cmd_rc);
+				rs__cancel_outstanding(conn, other_os, error, cmd_rc);
 			}
 		}
 		
@@ -110,20 +111,20 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os, uint16_t cmd_rc)
 
 
 void
-rs__cancel_queued(rs_conn_t *conn, rs__req_t *req)
+rs__cancel_queued(rs_conn_t *conn, rs__req_t *req, int error)
 {
 	// Just raise the associated callback with an error status. The caller will
 	// handle the removing of the request from the queue
 	switch (req->type) {
 		case RS__REQ_SCP_PACKET:
-			req->data.scp_packet.cb(conn, true,
+			req->data.scp_packet.cb(conn, error,
 			                        0, 0, 0, 0, 0, req->data.scp_packet.data,
 			                        req->cb_data);
 			break;
 		
 		case RS__REQ_READ:
 		case RS__REQ_WRITE:
-			req->data.rw.cb(conn, true,
+			req->data.rw.cb(conn, error,
 			                0, req->data.rw.orig_data,
 			                req->cb_data);
 			break;

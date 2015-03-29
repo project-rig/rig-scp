@@ -73,7 +73,7 @@ rs_conn_t *conn;
 // complete. Libuv (and thus Rig SCP) is event based: every command returns at
 // some point in the future by calling a callback function you provide.
 void cmd_ver_callback(rs_conn_t *conn,
-                      bool error,
+                      int error,
                       uint16_t cmd_rc,
                       unsigned int n_args,
                       uint32_t arg1,
@@ -82,12 +82,12 @@ void cmd_ver_callback(rs_conn_t *conn,
                       uv_buf_t data,
                       void *cb_data);
 void read_callback(rs_conn_t *conn,
-                   bool error,
+                   int error,
                    uint16_t cmd_rc,
                    uv_buf_t data,
                    void *cb_data);
 void write_callback(rs_conn_t *conn,
-                    bool error,
+                    int error,
                     uint16_t cmd_rc,
                     uv_buf_t data,
                     void *cb_data);
@@ -210,7 +210,7 @@ main(int argc, char *argv[])
  */
 void
 cmd_ver_callback(rs_conn_t *conn,
-                 bool error,
+                 int error,
                  uint16_t cmd_rc,
                  unsigned int n_args,
                  uint32_t arg1,
@@ -220,10 +220,22 @@ cmd_ver_callback(rs_conn_t *conn,
                  void *cb_data)
 {
 	// Make sure we got the correct reply
-	assert(!error); // Make sure nothing went wrong (e.g. a timeout)
-	assert(cmd_rc == 128); // CMD_OK
-	assert(n_args == 3); // CMD_VER responses have all three arguments
-	assert(data.len > 0); // Should have a version string in the payload
+	if (error) {
+		printf("ERROR: %s\n", rs_strerror(error));
+		abort();
+	}
+	if (cmd_rc != 128) {
+		printf("ERROR: Unexpected return code for CMD_VER %u\n", cmd_rc);
+		abort();
+	}
+	if (n_args != 3) {
+		printf("ERROR: Expect 3 arguments in response to CMD_VER\n");
+		abort();
+	}
+	if (data.len <= 0) {
+		printf("ERROR: Expect a null terminated string in response to CMD_VER.\n");
+		abort();
+	}
 	
 	// Unpack the version information and print it out. Notice that we might not
 	// get all our responses back in the same order we sent them if the
@@ -286,13 +298,16 @@ cmd_ver_callback(rs_conn_t *conn,
  */
 void
 write_callback(rs_conn_t *conn,
-               bool error,
+               int error,
                uint16_t cmd_rc,
                uv_buf_t data,
                void *cb_data)
 {
 	// Make sure we got the correct reply
-	assert(!error); // Make sure nothing went wrong (e.g. a timeout)
+	if (error) {
+		printf("ERROR: %s\n", rs_strerror(error));
+		abort();
+	}
 	
 	// Set up a pointer to a buffer to receive the read data
 	uv_buf_t r_data;
@@ -327,13 +342,16 @@ write_callback(rs_conn_t *conn,
  */
 void
 read_callback(rs_conn_t *conn,
-              bool error,
+              int error,
               uint16_t cmd_rc,
               uv_buf_t data,
               void *cb_data)
 {
 	// Make sure we got the correct reply
-	assert(!error); // Make sure nothing went wrong (e.g. a timeout)
+	if (error) {
+		printf("ERROR: %s\n", rs_strerror(error));
+		abort();
+	}
 	
 	printf("Read complete in %0.0f ms! Throughput = %0.3f Mbit/s.\n",
 	       (double)(uv_now(loop) - last_time),

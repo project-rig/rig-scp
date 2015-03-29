@@ -321,14 +321,6 @@ mm__recv_cb(uv_udp_t *handle,
             const struct sockaddr *addr,
             unsigned flags)
 {
-	printf("mm__recv_cb()\n");
-	printf("  buf->len=%d\n", (int)nread);
-	printf("  buf->base=");
-	int i;
-	for (i = 0; i < nread; i++)
-		printf("%02X ", (int)(((unsigned char *)buf->base)[i]));
-	printf("\n");
-	
 	if (nread == 0 && addr == NULL) {
 		// No more data to come, free the buffer and terminate now
 		free(buf->base);
@@ -434,14 +426,6 @@ mm__timer_cb(uv_timer_t *timer_handle)
 		
 		// Send the request
 		resp->udp_send_active++;
-		
-		printf("mm__timer_cb()\n");
-		printf("  buf->len=%d\n", (int)send->buf.len);
-		printf("  buf->base=");
-		int i;
-		for (i = 0; i < send->buf.len; i++)
-			printf("%02X ", (int)(((unsigned char *)send->buf.base)[i]));
-		printf("\n");
 		
 		if (uv_udp_send(&(send->udp_send_req), &(mm->udp_handle),
 		                &(send->buf), 1, &(resp->addr), mm__send_cb)) abort();

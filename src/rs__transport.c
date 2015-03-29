@@ -28,19 +28,20 @@ rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os)
 	if (++os->n_tries <= conn->n_tries) {
 		// Attempt to transmit
 		os->send_req_active = true;
-		if (uv_udp_send(&(os->send_req),
-		                &(conn->udp_handle),
-		                &(os->packet), 1,
-		                conn->addr,
-		                rs__udp_send_cb)) {
+		int err = uv_udp_send(&(os->send_req),
+		                      &(conn->udp_handle),
+		                      &(os->packet), 1,
+		                      conn->addr,
+		                      rs__udp_send_cb);
+		if (err) {
 			// Transmission failiure: clean up
 			os->send_req_active = false;
-			rs__cancel_outstanding(conn, os, -1);
+			rs__cancel_outstanding(conn, os, err, -1);
 			return;
 		}
 	} else {
 		// Maximum number of attempts made, fail and clean up.
-		rs__cancel_outstanding(conn, os, -1);
+		rs__cancel_outstanding(conn, os, RS_ETIMEOUT, -1);
 	}
 }
 
@@ -86,7 +87,7 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 	
 	// If something went wrong, cancel the request
 	if (status != 0) {
-		rs__cancel_outstanding(os->conn, os, -1);
+		rs__cancel_outstanding(os->conn, os, status, -1);
 		return;
 	}
 	

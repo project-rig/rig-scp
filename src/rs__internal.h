@@ -273,15 +273,14 @@ void rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os);
 /**
  * Cancel the sending of a given outstanding request.
  *
- * Returns an error with the specified cmd_rc (should be -1 if the error is not
- * an SCP-reported one).
+ * Returns an error with the specified error code and cmd_rc.
  *
  * If the request is a read or write, it also cancells all other associated
  * outstanding channels and removes the request from the request queue (if it is
  * still there).
  */
 void rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
-                            uint16_t cmd_rc);
+                            int error, uint16_t cmd_rc);
 
 
 /**
@@ -292,7 +291,7 @@ void rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
  * request is not outstanding (i.e. for read/write requests that any outstanding
  * part of the request has already been cancelled with rs__cancel_outstanding.
  */
-void rs__cancel_queued(rs_conn_t *conn, rs__req_t *req);
+void rs__cancel_queued(rs_conn_t *conn, rs__req_t *req, int error);
 
 
 /**

@@ -264,7 +264,7 @@ rs_free(rs_conn_t *conn)
 	
 	for (i = 0; i < conn->n_outstanding; i++) {
 		// Cancel all outstanding requests
-		rs__cancel_outstanding(conn, &(conn->outstanding[i]), -1);
+		rs__cancel_outstanding(conn, &(conn->outstanding[i]), RS_EFREE, -1);
 		
 		// Close the timer handles
 		if (!uv_is_closing((uv_handle_t *)&(conn->outstanding[i].timer_handle)))
@@ -275,7 +275,7 @@ rs_free(rs_conn_t *conn)
 	// Cancel all remaining queued requests
 	rs__req_t *req;
 	while ((req = rs__q_remove(conn->request_queue)))
-		rs__cancel_queued(conn, req);
+		rs__cancel_queued(conn, req, RS_EFREE);
 	
 	// Check whether any UDP send requests are active or timer handle closures
 	// (which require us to postpone the free since their handles would get freed
@@ -297,4 +297,38 @@ rs_free(rs_conn_t *conn)
 	free(conn->outstanding);
 	rs__q_free(conn->request_queue);
 	free(conn);
+}
+
+
+static const char RS__EBAD_RC_NAME[] = "RS_EBAD_RC";
+static const char RS__EBAD_RC_MSG[] = "Bad response to CMD_READ/CMD_WRITE";
+
+static const char RS__ETIMEOUT_NAME[] = "RS_ETIMEOUT";
+static const char RS__ETIMEOUT_MSG[] = "SCP command timed out";
+
+static const char RS__EFREE_NAME[] = "RS_EFREE";
+static const char RS__EFREE_MSG[] = "SCP connection was closed/freed";
+
+
+const char *
+rs_strerror(int err)
+{
+	switch (err) {
+		case RS_EBAD_RC:  return RS__EBAD_RC_MSG;
+		case RS_ETIMEOUT: return RS__ETIMEOUT_MSG;
+		case RS_EFREE:    return RS__EFREE_MSG;
+		default:          return uv_strerror(err);
+	}
+}
+
+
+const char *
+rs_err_name(int err)
+{
+	switch (err) {
+		case RS_EBAD_RC:  return RS__EBAD_RC_NAME;
+		case RS_ETIMEOUT: return RS__ETIMEOUT_NAME;
+		case RS_EFREE:    return RS__EFREE_NAME;
+		default:          return uv_err_name(err);
+	}
 }

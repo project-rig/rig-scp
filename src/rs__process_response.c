@@ -70,7 +70,7 @@ rs__process_response_rw(rs_conn_t *conn, rs__outstanding_t *os,
 	
 	// Check the response was OK and fail if not
 	if (cmd_rc != RS__SCP_CMD_OK) {
-		rs__cancel_outstanding(conn, os, cmd_rc);
+		rs__cancel_outstanding(conn, os, RS_EBAD_RC, cmd_rc);
 		return;
 	}
 	
