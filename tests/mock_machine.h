@@ -102,7 +102,7 @@ struct mm_req {
 	// Sequence number of the request
 	uint16_t seq_num;
 	
-	// Data buffer to store incoming packets
+	// Data buffer to store incoming packets (not including padding bytes)
 	char packet[RS__SIZEOF_SCP_PACKET(3, MM_SCP_DATA_LENGTH)];
 	uv_buf_t buf;
 	

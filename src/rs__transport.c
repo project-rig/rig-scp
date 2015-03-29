@@ -119,19 +119,24 @@ rs__udp_recv_cb(uv_udp_t *handle,
 	
 	int i;
 	
-	// Ignore anything which isn't long enough to be an SCP packet. This also
-	// skips cases when the length is 0 meaning "no more data" or <0 meaning some
-	// kind of error has ocurred. Note that receive errors are rare and very
-	// difficult to interpret so we consider them safe to ignore.
-	if (nread >= RS__SIZEOF_SCP_PACKET(0, 0)) {
+	// Ignore anything which isn't long enough to be an SCP packet (note that 2
+	// empty bytes are included in the start of every SCP packet). This also skips
+	// cases when the length is 0 meaning "no more data" or <0 meaning some kind
+	// of error has ocurred. Note that receive errors are rare and very difficult
+	// to interpret so we consider them safe to ignore.
+	if (nread >= RS__SIZEOF_SCP_PACKET(0, 0) + 2) {
+		// Skip past empty padding bytes to get to the packet
+		uv_buf_t buf_ = *buf;
+		buf_.base += 2;
+		buf_.len = nread - 2;
+		
 		// Check to see if a packet with this sequence number is outstanding (if
 		// not, the packet is ignored too)
-		uint16_t seq_num = rs__unpack_scp_packet_seq_num(*buf);
+		uint16_t seq_num = rs__unpack_scp_packet_seq_num(buf_);
+		
 		for (i = 0; i < conn->n_outstanding; i++) {
 			rs__outstanding_t *os = conn->outstanding + i;
 			if (os->active && os->seq_num == seq_num) {
-				uv_buf_t buf_ = *buf;
-				buf_.len = nread;
 				rs__process_response(conn, os, buf_);
 				break;
 			}

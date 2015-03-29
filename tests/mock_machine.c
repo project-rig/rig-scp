@@ -321,6 +321,14 @@ mm__recv_cb(uv_udp_t *handle,
             const struct sockaddr *addr,
             unsigned flags)
 {
+	printf("mm__recv_cb()\n");
+	printf("  buf->len=%d\n", (int)nread);
+	printf("  buf->base=");
+	int i;
+	for (i = 0; i < nread; i++)
+		printf("%02X ", (int)(((unsigned char *)buf->base)[i]));
+	printf("\n");
+	
 	if (nread == 0 && addr == NULL) {
 		// No more data to come, free the buffer and terminate now
 		free(buf->base);
@@ -331,19 +339,19 @@ mm__recv_cb(uv_udp_t *handle,
 	}
 	
 	mm_t *mm = (mm_t *)handle->data;
-	mm_req_t *req = mm_get_req(mm, MM__SEQ_NUM(buf->base));
+	mm_req_t *req = mm_get_req(mm, MM__SEQ_NUM(buf->base + 2));
 	
-	// Sanity check that the arriving packet isn't too large for the buffers
-	// allocated
-	if (nread > sizeof(req->packet)) abort();
+	// Sanity check that the arriving packet (less its padding) isn't too large
+	// for the buffers allocated
+	if (nread - 2 > sizeof(req->packet)) abort();
 	
 	// See if the packet changed since the last attempt
-	if (req->buf.len != nread ||
-	    memcmp(req->buf.base, buf->base, nread)) {
+	if (req->buf.len != nread - 2 ||
+	    memcmp(req->buf.base, buf->base + 2, nread - 2)) {
 		// If so, copy it in
 		req->n_changes++;
-		memcpy(req->buf.base, buf->base, nread);
-		req->buf.len = nread;
+		memcpy(req->buf.base, buf->base + 2, nread - 2);
+		req->buf.len = nread - 2;
 	}
 	
 	req->n_tries++;
@@ -426,6 +434,15 @@ mm__timer_cb(uv_timer_t *timer_handle)
 		
 		// Send the request
 		resp->udp_send_active++;
+		
+		printf("mm__timer_cb()\n");
+		printf("  buf->len=%d\n", (int)send->buf.len);
+		printf("  buf->base=");
+		int i;
+		for (i = 0; i < send->buf.len; i++)
+			printf("%02X ", (int)(((unsigned char *)send->buf.base)[i]));
+		printf("\n");
+		
 		if (uv_udp_send(&(send->udp_send_req), &(mm->udp_handle),
 		                &(send->buf), 1, &(resp->addr), mm__send_cb)) abort();
 	}
@@ -439,11 +456,13 @@ static void
 mm__pack_response_generic(mm_t *mm, mm_req_t *req, mm_resp_t *resp,
                           uv_buf_t *buf)
 {
-	// Make a copy of the packet to be returned verbatim.
-	buf->base = malloc(req->buf.len);
+	// Make a copy of the packet to be returned verbatim with two padding bytes
+	// added.
+	buf->base = malloc(req->buf.len + 2);
 	if (!buf->base) abort();
-	memcpy(buf->base, req->buf.base, req->buf.len);
-	buf->len = req->buf.len;
+	memset(buf->base, 0, 2);
+	memcpy(buf->base + 2, req->buf.base, req->buf.len);
+	buf->len = req->buf.len + 2;
 }
 
 
@@ -461,20 +480,21 @@ mm__pack_response_read(mm_t *mm, mm_req_t *req, mm_resp_t *resp,
 	
 	// Generate a response packet, initially based on the request with the
 	// arguments stripped out
-	buf->base = malloc(RS__SIZEOF_SCP_PACKET(0, MM__RW_LENGTH(p)));
+	buf->base = malloc(2 + RS__SIZEOF_SCP_PACKET(0, MM__RW_LENGTH(p)));
 	if (!buf->base) abort();
-	buf->len = RS__SIZEOF_SCP_PACKET(0, MM__RW_LENGTH(p));
-	memcpy(buf->base, req->buf.base, RS__SIZEOF_SCP_PACKET(0, 0));
+	buf->len = RS__SIZEOF_SCP_PACKET(0, MM__RW_LENGTH(p)) + 2;
+	memset(buf->base, 0, 2);
+	memcpy(buf->base + 2, req->buf.base, RS__SIZEOF_SCP_PACKET(0, 0));
 	
-	// Report failiure as required
+	// Report failure as required
 	if (MM__RW_N_RESP_BEFORE_ERROR(p) == 255 ||
 	    rw->n_responses_sent != MM__RW_N_RESP_BEFORE_ERROR(p))
-		MM__CMD_RC(buf->base) = RS__SCP_CMD_OK;
+		MM__CMD_RC(buf->base + 2) = RS__SCP_CMD_OK;
 	else
-		MM__CMD_RC(buf->base) = 0;
+		MM__CMD_RC(buf->base + 2) = 0;
 	
 	// Copy the requested data into the response payload
-	memcpy(((char *)buf->base) + RS__SIZEOF_SCP_PACKET(0, 0),
+	memcpy(((char *)buf->base) + 2 + RS__SIZEOF_SCP_PACKET(0, 0),
 	       rw->data + MM__RW_ADDR(p),
 	       MM__RW_LENGTH(p));
 	
@@ -506,18 +526,19 @@ mm__pack_response_write(mm_t *mm, mm_req_t *req, mm_resp_t *resp,
 	mm_rw_t *rw = mm_get_rw(mm, MM__RW_ID(req->buf.base));
 	
 	// Generate a response packet, initially based on the request with the
-	// arguments stripped out
-	buf->base = malloc(RS__SIZEOF_SCP_PACKET(0, 0));
+	// arguments stripped out (including 2 bytes padding)
+	buf->base = malloc(RS__SIZEOF_SCP_PACKET(0, 0) + 2);
 	if (!buf->base) abort();
-	buf->len = RS__SIZEOF_SCP_PACKET(0, 0);
-	memcpy(buf->base, req->buf.base, RS__SIZEOF_SCP_PACKET(0, 0));
+	buf->len = RS__SIZEOF_SCP_PACKET(0, 0) + 2;
+	memset(buf->base, 0, 2);
+	memcpy(buf->base + 2, req->buf.base, RS__SIZEOF_SCP_PACKET(0, 0));
 	
 	// Report failiure as required
 	if (MM__RW_N_RESP_BEFORE_ERROR(p) == 255 ||
 	    rw->n_responses_sent != MM__RW_N_RESP_BEFORE_ERROR(p))
-		MM__CMD_RC(buf->base) = RS__SCP_CMD_OK;
+		MM__CMD_RC(buf->base + 2) = RS__SCP_CMD_OK;
 	else
-		MM__CMD_RC(buf->base) = 0;
+		MM__CMD_RC(buf->base + 2) = 0;
 	
 	// Copy the supplied data into the 'memory'
 	memcpy(rw->data + MM__RW_ADDR(p),

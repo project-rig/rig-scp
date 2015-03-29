@@ -34,8 +34,13 @@ rs__process_queued_scp_packet(rs_conn_t *conn,
 	os->data.scp_packet.cb = req->data.scp_packet.cb;
 	os->cb_data = req->cb_data;
 	
+	// Pack the packet just after the initial null padding bytes
+	uv_buf_t packet;
+	packet.base = os->packet.base + 2;
+	packet.len = os->packet.len - 2;
+	
 	// Pack the packet ready for transmission
-	rs__pack_scp_packet(&(os->packet),
+	rs__pack_scp_packet(&packet,
 	                    conn->scp_data_length,
 	                    req->dest_addr,
 	                    req->dest_cpu,
@@ -46,6 +51,10 @@ rs__process_queued_scp_packet(rs_conn_t *conn,
 	                    req->data.scp_packet.arg2,
 	                    req->data.scp_packet.arg3,
 	                    req->data.scp_packet.data);
+	
+	// Update the length of the outstanding packet (including the two padding
+	// bytes)
+	os->packet.len = packet.len + 2;
 }
 
 
@@ -78,11 +87,16 @@ rs__process_queued_rw(rs_conn_t *conn,
 	// Work out the type of read/write request based on the address and length
 	uint32_t req_type = rs__scp_rw_type(address, os->data.rw.data.len);
 	
+	// Pack the packet just after the initial null padding bytes
+	uv_buf_t packet;
+	packet.base = os->packet.base + 2;
+	packet.len = os->packet.len - 2;
+	
 	// Pack the packet ready for transmission
 	if (os->type == RS__REQ_READ) {
 		uv_buf_t empty;
 		empty.len = 0;
-		rs__pack_scp_packet(&(os->packet),
+		rs__pack_scp_packet(&packet,
 		                    conn->scp_data_length,
 		                    req->dest_addr,
 		                    req->dest_cpu,
@@ -94,7 +108,7 @@ rs__process_queued_rw(rs_conn_t *conn,
 		                    req_type,
 		                    empty);
 	} else {
-		rs__pack_scp_packet(&(os->packet),
+		rs__pack_scp_packet(&packet,
 		                    conn->scp_data_length,
 		                    req->dest_addr,
 		                    req->dest_cpu,
@@ -106,6 +120,10 @@ rs__process_queued_rw(rs_conn_t *conn,
 		                    req_type,
 		                    os->data.rw.data);
 	}
+	
+	// Update the length of the outstanding packet (including the two padding
+	// bytes)
+	os->packet.len = packet.len + 2;
 	
 	// The last packet has been sent if the remaining data is empty
 	return req->data.rw.data.len <= 0;

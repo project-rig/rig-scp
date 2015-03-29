@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include <uv.h>
 
@@ -90,9 +91,10 @@ rs_init(uv_loop_t *loop,
 		conn->outstanding[i].send_req_active = false;
 		conn->outstanding[i].cancelled = false;
 		
-		// Allocate sufficient space to buffer SCP packet data.
+		// Allocate sufficient space to buffer SCP packet data (and two empty
+		// padding bytes required when transmitting SCP over UDP).
 		conn->outstanding[i].packet.base =
-			malloc(RS__SIZEOF_SCP_PACKET(3, conn->scp_data_length));
+			malloc(RS__SIZEOF_SCP_PACKET(3, conn->scp_data_length) + 2);
 		if (!conn->outstanding[i].packet.base) {
 			while (--i >= 0)
 				free(conn->outstanding[i].packet.base);
@@ -100,6 +102,8 @@ rs_init(uv_loop_t *loop,
 			free(conn);
 			return NULL;
 		}
+		// Zero the two included padding bytes
+		memset(conn->outstanding[i].packet.base, 0, 2);
 		
 		// Initialise the timer
 		if (uv_timer_init(conn->loop, &(conn->outstanding[i].timer_handle))) {

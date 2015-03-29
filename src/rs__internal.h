@@ -132,7 +132,10 @@ typedef struct {
 	// The number of attempts made to transmit the current packet
 	unsigned int n_tries;
 	
-	// The raw packet value and its length (to be used for retransmission).
+	// The raw packet value and its length (to be used for retransmission). The
+	// packet will have two null padding bytes at the start of the allocated
+	// packet buffer. (The padding bytes are required when passing SCP packets
+	// over UDP).
 	uv_buf_t packet;
 	
 	// The current UDP send request (or NULL if the send operation is complete)
