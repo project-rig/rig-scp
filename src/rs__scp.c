@@ -3,6 +3,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 #include <stdint.h>
 
 #include <uv.h>
@@ -116,13 +117,13 @@ rs__unpack_scp_packet(uv_buf_t buf,
 	
 	// Truncate n_args if the packet is too short
 	if (buf.len <= RS__SIZEOF_SCP_PACKET(0, 0))
-		*n_args = 0;
+		*n_args = MIN(0, *n_args);
 	else if (buf.len <= RS__SIZEOF_SCP_PACKET(1, 0))
-		*n_args = 1;
+		*n_args = MIN(1, *n_args);
 	else if (buf.len <= RS__SIZEOF_SCP_PACKET(2, 0))
-		*n_args = 2;
+		*n_args = MIN(2, *n_args);
 	else if (buf.len <= RS__SIZEOF_SCP_PACKET(3, 0))
-		*n_args = 3;
+		*n_args = MIN(3, *n_args);
 	
 	// Unpack arguments (if present)
 	if (*n_args >= 1)
