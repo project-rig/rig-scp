@@ -82,7 +82,7 @@ rs__pack_scp_packet(uv_buf_t *buf,
 	data.len = MIN(data.len, scp_data_length);
 	
 	// Copy the truncated payload into the buffer
-	memcpy(buf->base + sizeof(sdp_scp_header_t) - (4 * (3 - n_args)),
+	memcpy(buf->base + RS__SIZEOF_SCP_PACKET(n_args, 0),
 	       data.base, data.len);
 	
 	// Calculate the final length of the packet
@@ -113,6 +113,16 @@ rs__unpack_scp_packet(uv_buf_t buf,
 	// Unpack basic SCP fields
 	*cmd_rc = header->cmd_rc;
 	*seq_num = header->seq_num;
+	
+	// Truncate n_args if the packet is too short
+	if (buf.len <= RS__SIZEOF_SCP_PACKET(0, 0))
+		n_args = 0;
+	else if (buf.len <= RS__SIZEOF_SCP_PACKET(1, 0))
+		n_args = 1;
+	else if (buf.len <= RS__SIZEOF_SCP_PACKET(2, 0))
+		n_args = 2;
+	else if (buf.len <= RS__SIZEOF_SCP_PACKET(3, 0))
+		n_args = 3;
 	
 	// Unpack arguments (if present)
 	if (n_args >= 1)

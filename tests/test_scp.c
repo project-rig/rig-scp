@@ -126,6 +126,22 @@ START_TEST (test_unpack_scp_packet)
 	ck_assert(memcmp(buf_data, packet_no_arg_no_data, packet_no_arg_no_data_len)
 	          == 0);
 	
+	// Ensure that if more arguments are requested than provided the command
+	// doesn't read them.
+	cmd_rc = 0;
+	seq_num = 0;
+	rs__unpack_scp_packet(buf,
+	                      &cmd_rc, &seq_num,
+	                      3, NULL, NULL, NULL,
+	                      &data);
+	ck_assert_uint_eq(cmd_rc, 0xDEAD);
+	ck_assert_uint_eq(seq_num, 0xBEEF);
+	ck_assert_uint_eq(data.len, 0);
+	
+	// Ensure the data didn't get modified
+	ck_assert(memcmp(buf_data, packet_no_arg_no_data, packet_no_arg_no_data_len)
+	          == 0);
+	
 	// Grab the with args test example and put it in a buffer
 	memcpy(buf_data, packet, packet_len);
 	buf.base = (void *)buf_data;
