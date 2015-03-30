@@ -59,6 +59,12 @@
 #define TEST_ADDRESS 0x60240000
 
 
+// The destination chip for all commands sent by this example program.
+#define DEST_CHIP_X 0
+#define DEST_CHIP_Y 0
+#define DEST_CHIP ((DEST_CHIP_X) << 8 | (DEST_CHIP_Y))
+
+
 // A global pointer to the libuv event loop which we'll set and use later on...
 static uv_loop_t *loop;
 
@@ -173,7 +179,7 @@ main(int argc, char *argv[])
 		// the response comes back. The last callback to complete will then trigger
 		// the bulk read/write operations.
 		rs_send_scp(conn,
-		            0x0000, // Chip (0, 0)
+		            DEST_CHIP,
 		            i, // CPU i
 		            0, // cmd_rc: CMD_VER
 		            3, // Must provide three arguments for CMD_VER (though their
@@ -283,7 +289,7 @@ cmd_ver_callback(rs_conn_t *conn,
 		
 		// Now lets actually send the write request.
 		rs_write(conn,
-		         0x0000, // Write to chip (0, 0)'s memory
+		         DEST_CHIP,
 		         0, // Write to CPU 0's memory
 		         TEST_ADDRESS,
 		         data,
@@ -306,6 +312,8 @@ write_callback(rs_conn_t *conn,
 	// Make sure we got the correct reply
 	if (error) {
 		printf("ERROR: %s\n", rs_strerror(error));
+		if (error == RS_EBAD_RC)
+			printf("(cmd_rc = %d)\n", cmd_rc);
 		abort();
 	}
 	
@@ -328,7 +336,7 @@ write_callback(rs_conn_t *conn,
 	// Now that the write has completed, lets read back the data to check it came
 	// back the same.
 	rs_read(conn,
-	        0x0000, // Read from chip (0, 0)'s memory
+	        DEST_CHIP, // Read from chip (0, 0)'s memory
 	        0, // Read from CPU 0's memory
 	        TEST_ADDRESS,
 	        r_data,
@@ -350,6 +358,8 @@ read_callback(rs_conn_t *conn,
 	// Make sure we got the correct reply
 	if (error) {
 		printf("ERROR: %s\n", rs_strerror(error));
+		if (error == RS_EBAD_RC)
+			printf("(cmd_rc = %d)\n", cmd_rc);
 		abort();
 	}
 	
