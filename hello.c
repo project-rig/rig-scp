@@ -50,7 +50,7 @@
 #define N_CPUS 16
 
 // Amount of data to read/write (in bytes) in this example program.
-#define DATA_LEN 128 * 1024
+#define DATA_LEN 100 * 1024 * 1024
 
 // An address in SpiNNaker to perform read/write operations on. In this example,
 // the start of the 'User SDRAM' block (sv->sdram_base). Note, in real-world use
