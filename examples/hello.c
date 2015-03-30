@@ -131,7 +131,7 @@ main(int argc, char *argv[])
 	loop = uv_default_loop();
 	assert(loop);
 	
-	// We must convert the hostname into a "struct addrinfo" is is conventional
+	// We must convert the hostname into a "struct addrinfo" as is conventional
 	// for the POSIX socket API. In order to do this we must make a DNS query to
 	// resolve the IP address of the given host. Note: libuv provides an
 	// asynchronous version of getaddrinfo (uv_getaddrinfo) but we don't use it in
@@ -148,7 +148,7 @@ main(int argc, char *argv[])
 	// physical connection to the machine available. In this case we'll just make
 	// one. Also, note that all connection parameters are set at connection time
 	// and cannot be changed: you must disconnect and recreate the connection with
-	// new parameters when required.
+	// new parameters if you wish to change them later.
 	conn = rs_init(loop,
 	               addrinfo->ai_addr,
 	               scp_data_length,
@@ -167,18 +167,22 @@ main(int argc, char *argv[])
 	for (i = 0; i < N_CPUS; i++) {
 		got_cmd_ver_response[i] = false;
 		
-		// We must allocate a buffer to store the response data from the SCP
-		// command, we'll make one of size rs_send_scp which should be large enough
-		// to accept the CMD_VER response. To indicate that there is no data to be
-		// sent with our CMD_VER command we intially set data.len to 0.
+		// We must allocate a buffer to store the response data from the SCP command
+		// which we specify as a uv_buf_t (as is the convention in libuv) which has
+		// two fields: base and len. The base is a pointer to the start of the
+		// buffer and len is used to indicate the length of the useful data within
+		// it). We'll allocate rs_send_scp bytes which should be large enough to
+		// accept the CMD_VER response. To indicate that there is no data to be sent
+		// with our CMD_VER command we initially set data.len to 0.
 		uv_buf_t data;
 		data.base = malloc(scp_data_length);
 		assert(data.base);
 		data.len = 0;
 		
-		// Next we'll request the packet be sent and register a callback for when
-		// the response comes back. The last callback to complete will then trigger
-		// the bulk read/write operations.
+		// The following function actually queues up the packet to be sent and
+		// registers a callback, cmd_ver_callback, for when the response comes back.
+		// The last callback to complete will trigger the next part of the example
+		// program: bulk read/write operations.
 		rs_send_scp(conn,
 		            DEST_CHIP,
 		            i, // CPU i
@@ -195,11 +199,12 @@ main(int argc, char *argv[])
 	
 	// The rest of this program's activity will be purely event based so we just
 	// start the libuv event loop. The event loop will be terminated by a call to
-	// uv_stop in our final callback handler returing control to this here.
+	// uv_stop in our final callback handler, returning control back here.
 	uv_run(loop, UV_RUN_DEFAULT);
 	
 	// Finally we need to close the connection and free all the resources used by
-	// the connection.
+	// the connection. Even this function is asynchronous(!) and has a callback
+	// when it is complete.
 	rs_free(conn, conn_freed_callback, NULL);
 	
 	// Due to the slightly awkward way libuv works, the free command actually
@@ -212,6 +217,9 @@ main(int argc, char *argv[])
 }
 
 
+/**
+ * Callback for rs_free call at the end of the program.
+ */
 void
 conn_freed_callback(void *cb_data)
 {
@@ -235,12 +243,18 @@ cmd_ver_callback(rs_conn_t *conn,
                  uv_buf_t data,
                  void *cb_data)
 {
-	// Make sure we got the correct reply
+	// Make sure we got the correct reply. Note that we must do all this by hand:
+	// Rig SCP does not provide support for generating/consuming SCP commands.
 	if (error) {
+		// The rs_strerror function maps error numbers to human-readable strings.
+		// Negative error numbers correspond with libuv error codes (usually network
+		// related errors) while positive error numbers correspond with Rig SCP
+		// errors (e.g. timeouts).
 		printf("ERROR: %s\n", rs_strerror(error));
 		abort();
 	}
 	if (cmd_rc != 128) {
+		// The CMD_VER command expects "RC_OK" (128) in response.
 		printf("ERROR: Unexpected return code for CMD_VER %u\n", cmd_rc);
 		abort();
 	}
@@ -254,8 +268,8 @@ cmd_ver_callback(rs_conn_t *conn,
 	}
 	
 	// Unpack the version information and print it out. Notice that we might not
-	// get all our responses back in the same order we sent them if the
-	// n_outstanding is greater than 1!
+	// get all our responses back in the same order we sent them if n_outstanding
+	// is greater than 1!
 	unsigned int x = (arg1 >> 24) & 0xFF;
 	unsigned int y = (arg1 >> 16) & 0xFF;
 	unsigned int cpu_num = (arg1 >> 0) & 0xFF;
@@ -283,21 +297,23 @@ cmd_ver_callback(rs_conn_t *conn,
 		printf("All responses received after %0.0f ms.\n\n",
 		       (double)(uv_now(loop) - last_time));
 		
-		// Lets set up some mock data to write
+		// Generate some random data to write and set up a uv_buf_t as before, this
+		// time we set the len field to indicate how much data in the buffer is to
+		// be written.
 		for (i = 0; i < DATA_LEN; i++)
 			write_data[i] = rand();
 		uv_buf_t data;
 		data.base = (void *)write_data;
 		data.len = DATA_LEN;
 		
-	
 		printf("Writing %u bytes of random data to 0x%08X...\n",
 		       DATA_LEN, TEST_ADDRESS);
 		
 		// Start timing again...
 		last_time = uv_now(loop);
 		
-		// Now lets actually send the write request.
+		// Now lets actually queue up the write, setting up a callback for when the
+		// write completes.
 		rs_write(conn,
 		         DEST_CHIP,
 		         0, // Write to CPU 0's memory
@@ -319,23 +335,27 @@ write_callback(rs_conn_t *conn,
                uv_buf_t data,
                void *cb_data)
 {
-	// Make sure we got the correct reply
+	// Make sure nothing went wrong.
 	if (error) {
 		printf("ERROR: %s\n", rs_strerror(error));
+		// In the case of read/write operations, the error RS_EBAD_RC is returned
+		// if the machine returns anything but "RC_OK" in response to a read/write
+		// command. In this special case, the return code produced is placed in
+		// cmd_rc.
 		if (error == RS_EBAD_RC)
 			printf("(cmd_rc = %d)\n", cmd_rc);
 		abort();
 	}
 	
-	// Set up a pointer to a buffer to receive the read data
+	// Set up a buffer into which the data will be read from the machine. This
+	// time the len field indicates how much data to read.
 	uv_buf_t r_data;
 	r_data.base = (void *)read_data;
 	r_data.len = DATA_LEN;
 	
+	double duration = uv_now(loop) - last_time;
 	printf("Write completed in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
-	       (double)(uv_now(loop) - last_time),
-	       (DATA_LEN * 8.0) / ((uv_now(loop) - last_time) / 1000.0)
-	       / 1024.0 / 1024.0);
+	       duration, ((DATA_LEN * 8.0) / (duration / 1000.0) / 1024.0 / 1024.0));
 	
 	// Re-start timing...
 	last_time = uv_now(loop);
@@ -343,8 +363,8 @@ write_callback(rs_conn_t *conn,
 	printf("Reading back %u bytes from 0x%08X...\n",
 	       DATA_LEN, TEST_ADDRESS);
 	
-	// Now that the write has completed, lets read back the data to check it came
-	// back the same.
+	// Read back the data we just wrote; we'll check it matches in the callback
+	// function.
 	rs_read(conn,
 	        DEST_CHIP, // Read from chip (0, 0)'s memory
 	        0, // Read from CPU 0's memory
@@ -365,7 +385,7 @@ read_callback(rs_conn_t *conn,
               uv_buf_t data,
               void *cb_data)
 {
-	// Make sure we got the correct reply
+	// Make sure nothing went wrong.
 	if (error) {
 		printf("ERROR: %s\n", rs_strerror(error));
 		if (error == RS_EBAD_RC)
@@ -373,18 +393,17 @@ read_callback(rs_conn_t *conn,
 		abort();
 	}
 	
+	double duration = uv_now(loop) - last_time;
 	printf("Read completed in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
-	       (double)(uv_now(loop) - last_time),
-	       (DATA_LEN * 8.0) / ((uv_now(loop) - last_time) / 1000.0)
-	       / 1024.0 / 1024.0);
+	       duration, ((DATA_LEN * 8.0) / (duration / 1000.0) / 1024.0 / 1024.0));
 	
 	// Check the read data matches what we wrote before
-	if (memcmp(read_data, write_data, DATA_LEN) == 0) {
+	if (memcmp(read_data, write_data, DATA_LEN) == 0)
 		printf("The data read back matched the data written!\n\n");
-	} else {
+	else
 		printf("ERROR: The data read did not match the data written!\n\n");
-	}
 	
-	// And that's the end of this simple example! Stop the event loop.
+	// And that's the end of this simple example! Stop the libuv event loop
+	// bringing control back to the main function.
 	uv_stop(loop);
 }

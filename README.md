@@ -1,10 +1,10 @@
 Rig SCP
 =======
 
-Rig SCP is a high-performance C implementation of the [SpiNNaker Command
-Protocol
+Rig SCP is a low-level, high-performance C implementation of the [SpiNNaker
+Command Protocol
 (SCP)](https://spinnaker.cs.manchester.ac.uk/tiki-index.php?page=Application+note+5+-+SCP+Specification)
-transport mechanism.
+transport mechanism built on top of [libuv](http://docs.libuv.org/en/v1.x/).
 
 Purpose
 -------
@@ -17,7 +17,6 @@ the effects of network latency on throughput and, within the implementation,
 data is not wastefully copied multiple times between the network socket and
 application. The use of multiple SCP connections simultaneously is also
 indirectly supported thanks to a completely asynchronous API.
-
 
 The API also allows users to asynchronously send arbitrary SCP packets.  The
 `CMD_READ` and `CMD_WRITE` commands are optionally treated specially via a
@@ -58,8 +57,10 @@ above.
 Installation
 ------------
 
-Rig SCP is installed via [cmake](http://www.cmake.org/) proceeds as usual like
-so:
+Rig SCP depends on [libuv](http://docs.libuv.org/en/v1.x/) which should be
+installed prior to installation.
+
+Compile and install using [cmake](http://www.cmake.org/) as usual:
 
     $ mkdir build
     $ cd build
