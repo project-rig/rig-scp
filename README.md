@@ -1,22 +1,47 @@
 Rig SCP
 =======
 
-Rig SCP is a high-performance C implementation of the SpiNNaker Command Protocol
-(SCP) transport mechanism.
+Rig SCP is a high-performance C implementation of the [SpiNNaker Command
+Protocol
+(SCP)](https://spinnaker.cs.manchester.ac.uk/tiki-index.php?page=Application+note+5+-+SCP+Specification)
+transport mechanism.
 
 Purpose
 -------
 
 This library is designed to support high throughput reliable transmission and
 reception of SCP packets from a SpiNNaker machine with a focus on making
-efficient use of all available I/O resources. In particular, multiple Ethernet
-connections to a single machine are supported as well as the use of windowing to
-hide the effects of latency on throughput. The library provides a
-high-performance wrapper around the `CMD_READ` and `CMD_WRITE` commands which
-allows users to bulk-send/receive arbitrarily large blocks of data to a
-SpiNNaker system. With this single exception, the library does *not* aim to
-provide a general high-level interface to SCP commands, users are required to
-construct their own sensible abstraction on top of this.
+efficient use of all available I/O resources.
+[Windowing](http://en.wikipedia.org/wiki/TCP_tuning#Window_size) is used to hide
+the effects of network latency on throughput and, within the implementation,
+data is not wastefully copied multiple times between the network socket and
+application. The use of multiple SCP connections simultaneously is also
+indirectly supported thanks to a completely asynchronous API.
+
+
+The API also allows users to asynchronously send arbitrary SCP packets.  The
+`CMD_READ` and `CMD_WRITE` commands are optionally treated specially via a
+high-level interface which allow users to bulk-read/write arbitrarily large
+blocks of data to a SpiNNaker system's memory.
+
+Please note that this library does *not* aim to provide a general, high-level
+interface to the SCP command set. Users are instead required to construct their
+own sensible abstractions on top Rig SCP.
+
+Performance
+-----------
+
+Some informal benchmarks were conducted against a locally connected SpiNN-5
+board running SC&MP v1.33 where a 10 MByte block of random data was written then
+read back from chip (0, 0)'s SDRAM.
+
+Implementation                                              | Version | Read (MBit/s) | Write (MBit/s)
+----------------------------------------------------------- | ------- | ------------- | --------------
+Rig SCP (this)                                              | 94121f7 | 29.8          | 32.1
+[ybug](https://github.com/SpiNNakerManchester/ybug)         | 1.33    | 6.5           | 6.4
+[Rig](https://github.com/project-rig/rig)                   | dc97817 | 5.1           | 5.0
+[SpiNNMan](https://github.com/SpiNNakerManchester/SpiNNMan) | 3eab5ee | 4.0           | 4.1
+
 
 Architecture
 ------------
@@ -49,6 +74,12 @@ The end user is notably required to perform the following duties:
   connection.
 * Generation and interpretation of SCP commands and responses (with the
   sole exception of bulk read/writes).
+
+Tutorial & Example Program
+--------------------------
+
+A tutorial example program `hello.c` is included which provides a heavily
+annotated walk-through of the process of using Rig SCP.
 
 Compiling
 ---------
