@@ -9,7 +9,7 @@ transport mechanism.
 Purpose
 -------
 
-This library is designed to support high throughput reliable transmission and
+This library is designed to support high throughput, reliable transmission and
 reception of SCP packets from a SpiNNaker machine with a focus on making
 efficient use of all available I/O resources.
 [Windowing](http://en.wikipedia.org/wiki/TCP_tuning#Window_size) is used to hide
@@ -43,25 +43,31 @@ Rig SCP (this)                                              | 94121f7 | 29.8    
 [SpiNNMan](https://github.com/SpiNNakerManchester/SpiNNMan) | 3eab5ee | 4.0           | 4.1
 
 
-Tutorial & Example Program
---------------------------
+Documentation
+-------------
 
-A tutorial example program `hello.c` is included which provides a heavily
-annotated walk-through of the process of using Rig SCP.
+The API is documented in detail in its (short) header file
+[`include/rs.h`](include/rs.h).
+
+A tutorial example program [`examples/hello.c`](examples/hello.c) is included
+which provides a heavily annotated tutorial-style walk-through of the complete
+API. This simple example application was used to produce the benchmark figures
+above.
 
 
-Compiling
----------
+Installation
+------------
 
-CMake is used to automate the build process. To begin with we recommend using a
-seperate build directory as follows:
+Rig SCP is installed via [cmake](http://www.cmake.org/) proceeds as usual like
+so:
 
     $ mkdir build
     $ cd build
     $ cmake ..
+    $ make
+    $ sudo make install
 
-This will create a `Makefile` in the `build/` directory. Type `make` to compile
-Rig SCP.
+The library is installed under the name `rigscp`.
 
 
 Tests

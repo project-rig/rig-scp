@@ -332,7 +332,7 @@ write_callback(rs_conn_t *conn,
 	r_data.base = (void *)read_data;
 	r_data.len = DATA_LEN;
 	
-	printf("Write complete in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
+	printf("Write completed in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
 	       (double)(uv_now(loop) - last_time),
 	       (DATA_LEN * 8.0) / ((uv_now(loop) - last_time) / 1000.0)
 	       / 1024.0 / 1024.0);
@@ -373,7 +373,7 @@ read_callback(rs_conn_t *conn,
 		abort();
 	}
 	
-	printf("Read complete in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
+	printf("Read completed in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
 	       (double)(uv_now(loop) - last_time),
 	       (DATA_LEN * 8.0) / ((uv_now(loop) - last_time) / 1000.0)
 	       / 1024.0 / 1024.0);
