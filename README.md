@@ -43,43 +43,12 @@ Rig SCP (this)                                              | 94121f7 | 29.8    
 [SpiNNMan](https://github.com/SpiNNakerManchester/SpiNNMan) | 3eab5ee | 4.0           | 4.1
 
 
-Architecture
-------------
-
-* Rig SCP operates in a single thread and uses *libuv* to handle concurrent I/O.
-* Rig SCP allows the opening of multiple parallel Ethernet *connections* to a
-  SpiNNaker machine.
-* Each *connection* has a *request queue* containing a stream of SCP packets,
-  bulk read commands and bulk write commands which is populated by the user.
-* Requests from the *request queue* and taken in order and transmitted to the
-  machine. SCP packets awaiting a response are placed in an *outstanding queue*
-  while an acknowledgement is awaited from the machine.
-* When an SCP acknowledgement arrives or a read/write completes, a callback will
-  be called.
-* In the case of bulk read/write commands, multiple SCP packets may be used
-  internally to complete the request however only a single request need be
-  presented by the user.
-* If an SCP acknowledgement does not arrive before a timeout occurs, the request
-  packet will be retransmitted. If after a number of retransmission attempts no
-  acknowledge is forthcoming, a failure indication will be provided to the
-  callback function.
-
-The end user is notably required to perform the following duties:
-
-* Discovery and selection of available Ethernet connections.
-* Selection of the most appropriate Ethernet connection to use to send each
-  request.
-* Discovery of the maximum allowed packet size supported by target system.
-* Discovery of the maximum number of outstanding requests allowed to a single
-  connection.
-* Generation and interpretation of SCP commands and responses (with the
-  sole exception of bulk read/writes).
-
 Tutorial & Example Program
 --------------------------
 
 A tutorial example program `hello.c` is included which provides a heavily
 annotated walk-through of the process of using Rig SCP.
+
 
 Compiling
 ---------
@@ -94,6 +63,7 @@ seperate build directory as follows:
 This will create a `Makefile` in the `build/` directory. Type `make` to compile
 Rig SCP.
 
+
 Tests
 -----
 
@@ -101,3 +71,92 @@ Tests
 run the test suite under valgrind use:
 
     $ make run_tests
+
+
+Internal Architecture
+---------------------
+
+The following diagram depicts a single SCP 'connection' to a single IP address
+(i.e. SpiNNaker Chip):
+
+	                         A Rig SCP 'Connection'
+	                         ======================
+	
+	                                                  Outstanding
+	                                                   Channels
+	                                                  '''''''''''
+	                     Request Queue
+	                     '''''''''''''          /|    +------+--+    |\      +---+
+	                                           / |--->|Packet|Tm|<-->| \     | S |
+	                 +---+---+--   --+---+    |  |    +------+--+    |  |    | o |
+	rs_send_scp -,   |Req|Req|       |Req|    |  |--->|Packet|Tm|<-->|  |    | c |
+	    rs_read -+-->|   |   |  ...  |   |--->|  |    +------+--+    |  |<-->| k |
+	   rs_write -'   |   |   |       |   |    |  |        ...        |  |    | e |
+	                 +---+---+--   --+---+    |  |    +------+--+    |  |    | t |
+	                                           \ |--->|Packet|Tm|<-->| /     |   |
+	                                            \|    +------+--+    |/      +---+
+	
+	    (1)                   (2)              (3)      (4)   (5)    (6)      (7)
+
+
+1. Rig SCP uses [libuv](http://docs.libuv.org/en/v1.x/) to present a simple
+   asynchronous interface. Users call the API functions to schedule the sending
+   of SCP packets and register a *callback* function to be called when the
+   packet's response returns (or an error occurs). Users supply the data to
+   transmit by reference and it is copied into the transmit buffer at the last
+   possible moment.
+
+2. Each API call generates a single *request* which is placed in the *request
+   queue*. Requests represent either a single SCP packet or a bulk read/write
+   operation (which may eventually result in the sending of many SCP packets).
+
+3. *Requests* are processed out of the *request queue* where they are split into
+   (possibly many) individual SCP packets which are allocated to one of
+	 `n_outstanding` *outstanding channels* and sent to the machine. Once all SCP
+	 packets associated with a *request* have been allocated an *outstanding
+	 channel*, the *request* is removed from the *request queue*.
+
+4. Each *outstanding channel* represents a single SCP packet which has been sent
+   to the machine and is awaiting a response.
+
+5. Each *outstanding channel* has a timer which causes packets to be
+   retransmitted if a response is not received after `timeout` milliseconds. If
+   a packet does not receive a response after `n_tries` transmissions it is
+   dropped and the user callback is called with an error status.
+
+6. Each packet is allocated a unique *sequence number* which is used to identify
+   responses from a machine and return them to the correct *outstanding
+   channel*. When the last packet associated with a request receives its
+   response or if any packet produces an error, the user supplied *callback* is
+   called and the request is considered complete.
+
+7. Note that only a single UDP socket is used by a Rig SCP connection. Since Rig
+   SCP is asynchronous, multiple Rig SCP connections can coexist in the same
+   thread and thus make use of additional Ethernet links to a single SpiNNaker
+   machine.
+
+Given the above description, the following observations are worth highlighting:
+
+* This library is low level. Many basic, but higher level, functions are left up
+  to the user:
+  * Discovery of the maximum allowed `scp_data_length`
+  * Discovery of the maximum allowed `n_outstanding`
+  * Discovery of available Ethernet connections
+  * Inteligently selecting which of a number of Rig SCP connections to use for a
+    given task
+  * Generation and interpretation of all SCP commands excluding `CMD_WRITE` and
+    `CMD_READ`.
+* The library automatically splits reads/writes issued via the API into SCP
+  packets whose payload is no longer than `scp_data_length`.
+* The maximum number of *outstanding channels* is fixed after the connection is
+  created, as a result only one SCP connection should be made to a given
+  SpiNNaker chip at any one time.
+* When a read or write is issued, it will be spread across as many outstanding
+  connections at once as possible. Subsequent requests will not be processed
+  until all read/write packets have been issued.
+* The *request queue* grows transparently to accommodate as many outstanding
+  requests as are supplied.
+* Though users are free to generate their own read/write SCP packets, this
+  necessitates the creation of a large number of requests (compared with just
+  one when using the built-in API). As a result, it is far more efficient to
+  use the API for writes.
