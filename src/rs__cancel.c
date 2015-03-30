@@ -36,7 +36,8 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
 	}
 	
 	// Kill the timeout timer (if running)
-	uv_timer_stop(&(os->timer_handle));
+	if (uv_is_active((uv_handle_t *)&(os->timer_handle)))
+		uv_timer_stop(&(os->timer_handle));
 	
 	// This flag is set if this cancellation also requires that another
 	// outstanding channel must also be cancelled(i.e. in the case of reads and

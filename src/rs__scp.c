@@ -87,7 +87,7 @@ rs__pack_scp_packet(uv_buf_t *buf,
 	       data.base, data.len);
 	
 	// Calculate the final length of the packet
-	buf->len = sizeof(sdp_scp_header_t) + data.len - (4 * (3 - n_args));
+	buf->len = RS__SIZEOF_SCP_PACKET(n_args, data.len);
 }
 
 

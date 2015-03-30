@@ -113,7 +113,8 @@ void
 rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t buf)
 {
 	// Stop the timeout timer
-	uv_timer_stop(&(os->timer_handle));
+	if (uv_is_active((uv_handle_t *)&(os->timer_handle)))
+		uv_timer_stop(&(os->timer_handle));
 	
 	// Deal with the packet depending on its type
 	switch (os->type) {

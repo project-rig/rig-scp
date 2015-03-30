@@ -91,8 +91,15 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 		return;
 	}
 	
-	// The packet has been dispatched, setup a timeout for the response
-	uv_timer_start(&(os->timer_handle), rs__timer_cb, conn->timeout, 0);
+	// The packet has been dispatched
+	if (os->active)
+		// Setup a timeout for the response
+		uv_timer_start(&(os->timer_handle), rs__timer_cb, conn->timeout, 0);
+	else
+		// A response has already arrived back thus we should simply process the
+		// queue as users waiting for this channel would be waiting on the
+		// send_req_active flag clearing.
+		rs__process_request_queue(conn);
 }
 
 

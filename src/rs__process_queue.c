@@ -37,7 +37,6 @@ rs__process_queued_scp_packet(rs_conn_t *conn,
 	// Pack the packet just after the initial null padding bytes
 	uv_buf_t packet;
 	packet.base = os->packet.base + 2;
-	packet.len = os->packet.len - 2;
 	
 	// Pack the packet ready for transmission
 	rs__pack_scp_packet(&packet,
@@ -90,11 +89,11 @@ rs__process_queued_rw(rs_conn_t *conn,
 	// Pack the packet just after the initial null padding bytes
 	uv_buf_t packet;
 	packet.base = os->packet.base + 2;
-	packet.len = os->packet.len - 2;
 	
 	// Pack the packet ready for transmission
 	if (os->type == RS__REQ_READ) {
 		uv_buf_t empty;
+		empty.base = NULL;
 		empty.len = 0;
 		rs__pack_scp_packet(&packet,
 		                    conn->scp_data_length,
@@ -140,7 +139,8 @@ rs__process_request_queue(rs_conn_t *conn)
 		// Find a free outstanding channel
 		rs__outstanding_t *os = NULL;
 		for (i = 0; i < conn->n_outstanding; i++) {
-			if (!conn->outstanding[i].active) {
+			if (!conn->outstanding[i].active &&
+			    !conn->outstanding[i].send_req_active) {
 				os = &(conn->outstanding[i]);
 				break;
 			}
