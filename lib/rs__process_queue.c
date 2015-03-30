@@ -136,7 +136,7 @@ rs__process_request_queue(rs_conn_t *conn)
 	
 	// Process as many packets as possible before running out
 	while (1) {
-		// Find a free outstanding channel
+		// Find a free outstanding slot
 		rs__outstanding_t *os = NULL;
 		for (i = 0; i < conn->n_outstanding; i++) {
 			if (!conn->outstanding[i].active &&
@@ -149,11 +149,11 @@ rs__process_request_queue(rs_conn_t *conn)
 		// Find a request to send
 		rs__req_t *req = (rs__req_t *)rs__q_peek(conn->request_queue);
 		
-		// Stop if there is no available channel or request
+		// Stop if there is no available slot or request
 		if (!os || !req)
 			return;
 		
-		// Place the request int the outstanding channel
+		// Place the request int the outstanding slot
 		switch (req->type) {
 			case RS__REQ_SCP_PACKET:
 				rs__process_queued_scp_packet(conn, req, os);

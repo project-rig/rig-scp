@@ -20,8 +20,8 @@
 void
 rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os)
 {
-	// Don't do anything if the channel has been cancelled. Any required callbacks
-	// have already been dealt with.
+	// Don't do anything if the packet in the slot has been cancelled. Any
+	// required callbacks have already been dealt with.
 	if (!os->active)
 		return;
 	
@@ -73,13 +73,13 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 		return;
 	}
 	
-	// If we were waiting on this callback before the channel could be marked as
-	// inactive after cancellation, do that.
+	// If we were waiting on this callback before the slot could be marked as
+	// inactive after cancellation, mark as inactive now.
 	if (os->active && os->cancelled) {
 		os->active = false;
 		os->cancelled = false;
 		
-		// Now that the channel is nolonger active, we may potentially handle new
+		// Now that the slot is nolonger active, we may potentially handle new
 		// requests.
 		rs__process_request_queue(conn);
 		return;
@@ -97,7 +97,7 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 		uv_timer_start(&(os->timer_handle), rs__timer_cb, conn->timeout, 0);
 	else
 		// A response has already arrived back thus we should simply process the
-		// queue as users waiting for this channel would be waiting on the
+		// queue as users waiting for this slot would be waiting on the
 		// send_req_active flag clearing.
 		rs__process_request_queue(conn);
 }

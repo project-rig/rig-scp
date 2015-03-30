@@ -120,7 +120,7 @@ typedef struct {
 	// used as the user-data for a number of callbacks.
 	rs_conn_t *conn;
 	
-	// Is this outstanding channel currently awaiting a response?
+	// Is this outstanding slot currently awaiting a response?
 	bool active;
 	
 	// The type of request that is active
@@ -145,8 +145,8 @@ typedef struct {
 	bool send_req_active;
 	
 	// If this outstanding request is cancelled while send_req_active, this flag
-	// indicates that the send_req callback should mark this outstanding channel
-	// as inactive.
+	// indicates that the send_req callback should mark this outstanding slot as
+	// inactive.
 	bool cancelled;
 	
 	// The timeout timer handle
@@ -255,7 +255,7 @@ struct rs_conn {
 
 
 /**
- * If and outstanding channels are available, process commands from the queue.
+ * If and outstanding slots are available, process commands from the queue.
  */
 void rs__process_request_queue(rs_conn_t *conn);
 
@@ -263,13 +263,12 @@ void rs__process_request_queue(rs_conn_t *conn);
 /**
  * Attempt (re-)transmission of an outstanding packet.
  *
- * This function attemtps to transmit the current packet in the outstanding
- * channel provided unless the number of transmission attempts passes the limit
- * or transmission fails. If the transmission fails, the user's callback will be
- * called appropriately, the channel marked as inactive and the request
- * cancelled.
+ * This function attemtps to transmit the current packet in the outstanding slot
+ * provided unless the number of transmission attempts passes the limit or
+ * transmission fails. If the transmission fails, the user's callback will be
+ * called appropriately, the slot marked as inactive and the request cancelled.
  *
- * Note: The outstanding channel must be active when calling this function.
+ * Note: The outstanding slot must be active when calling this function.
  */
 void rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os);
 
@@ -280,7 +279,7 @@ void rs__attempt_transmission(rs_conn_t *conn, rs__outstanding_t *os);
  * Returns an error with the specified error code and cmd_rc.
  *
  * If the request is a read or write, it also cancells all other associated
- * outstanding channels and removes the request from the request queue (if it is
+ * outstanding slots and removes the request from the request queue (if it is
  * still there).
  */
 void rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
@@ -304,8 +303,8 @@ void rs__cancel_queued(rs_conn_t *conn, rs__req_t *req, int error);
  * Note: The caller should remove the request from the queue once this function
  * has returned.
  *
- * The request must be of type RS__REQ_SCP_PACKET and the outstanding channel
- * must be inactive.
+ * The request must be of type RS__REQ_SCP_PACKET and the outstanding slot must
+ * be inactive.
  */
 void rs__process_queued_scp_packet(rs_conn_t *conn,
                                    rs__req_t *req,
@@ -316,7 +315,7 @@ void rs__process_queued_scp_packet(rs_conn_t *conn,
  * Used by rs__process_request_queue. Processes a single read/write request.
  *
  * The request must be of type RS__REQ_READ or RS__REQ_WRITE and the outstanding
- * channel must be inactive.
+ * slot must be inactive.
  *
  * @returns true if this call transmitted the last packet required for this
  *          read/write and thus the request should be removed from the queue.
@@ -336,7 +335,7 @@ void rs__udp_recv_alloc_cb(uv_handle_t *handle,
 /**
  * Callback function when an SCP packet arrives.
  *
- * If an outstanding channel with a matching sequence number is found,
+ * If an outstanding slot with a matching sequence number is found,
  * rs__process_response will be called with the response and the UDP data (which
  * will be freed as soon as rs__process_response returns).
  */

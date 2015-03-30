@@ -128,8 +128,8 @@ rs__process_response(rs_conn_t *conn, rs__outstanding_t *os, uv_buf_t buf)
 			break;
 	}
 	
-	// Mark this outstanding channel as inactive again and trigger queue
-	// processing since we just freed up an outstanding channel.
+	// Mark this outstanding slot as inactive again and trigger queue processing
+	// since we just freed up an outstanding slot.
 	os->active = false;
 	rs__process_request_queue(conn);
 }

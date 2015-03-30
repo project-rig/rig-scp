@@ -89,7 +89,7 @@ The following diagram depicts a single SCP 'connection' to a single IP address
 	                         ======================
 	
 	                                                  Outstanding
-	                                                   Channels
+	                                                     Slots
 	                                                  '''''''''''
 	                     Request Queue
 	                     '''''''''''''          /|    +------+--+    |\      +---+
@@ -118,23 +118,23 @@ The following diagram depicts a single SCP 'connection' to a single IP address
 
 3. *Requests* are processed out of the *request queue* where they are split into
    (possibly many) individual SCP packets which are allocated to one of
-	 `n_outstanding` *outstanding channels* and sent to the machine. Once all SCP
-	 packets associated with a *request* have been allocated an *outstanding
-	 channel*, the *request* is removed from the *request queue*.
+   `n_outstanding` *outstanding slots* and sent to the machine. Once all SCP
+   packets associated with a *request* have been allocated an *outstanding
+   slots*, the *request* is removed from the *request queue*.
 
-4. Each *outstanding channel* represents a single SCP packet which has been sent
+4. Each *outstanding slot* represents a single SCP packet which has been sent
    to the machine and is awaiting a response.
 
-5. Each *outstanding channel* has a timer which causes packets to be
-   retransmitted if a response is not received after `timeout` milliseconds. If
-   a packet does not receive a response after `n_tries` transmissions it is
-   dropped and the user callback is called with an error status.
+5. Each *outstanding slot* has a timer which causes packets to be retransmitted
+   if a response is not received after `timeout` milliseconds. If a packet does
+   not receive a response after `n_tries` transmissions it is dropped and the
+   user callback is called with an error status.
 
 6. Each packet is allocated a unique *sequence number* which is used to identify
    responses from a machine and return them to the correct *outstanding
-   channel*. When the last packet associated with a request receives its
-   response or if any packet produces an error, the user supplied *callback* is
-   called and the request is considered complete.
+   slot*. When the last packet associated with a request receives its response
+   or if any packet produces an error, the user supplied *callback* is called
+   and the request is considered complete.
 
 7. Note that only a single UDP socket is used by a Rig SCP connection. Since Rig
    SCP is asynchronous, multiple Rig SCP connections can coexist in the same
@@ -154,12 +154,12 @@ Given the above description, the following observations are worth highlighting:
     `CMD_READ`.
 * The library automatically splits reads/writes issued via the API into SCP
   packets whose payload is no longer than `scp_data_length`.
-* The maximum number of *outstanding channels* is fixed after the connection is
+* The maximum number of *outstanding slots* is fixed after the connection is
   created, as a result only one SCP connection should be made to a given
   SpiNNaker chip at any one time.
 * When a read or write is issued, it will be spread across as many outstanding
-  connections at once as possible. Subsequent requests will not be processed
-  until all read/write packets have been issued.
+  slots at once as possible. Subsequent requests will not be processed until all
+  read/write packets have been issued.
 * The *request queue* grows transparently to accommodate as many outstanding
   requests as are supplied.
 * Though users are free to generate their own read/write SCP packets, this

@@ -76,7 +76,7 @@ rs_init(uv_loop_t *loop,
 		return NULL;
 	}
 	
-	// Set up the outstanding channels
+	// Set up the outstanding slots
 	conn->outstanding = calloc(conn->n_outstanding, sizeof(rs__outstanding_t));
 	if (!conn->outstanding) {
 		rs__q_free(conn->request_queue);

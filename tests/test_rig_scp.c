@@ -957,14 +957,14 @@ END_TEST
 
 
 /**
- * Make sure that when multiple outstanding channels are available, a single
+ * Make sure that when multiple outstanding slots are available, a single
  * blocked packet can't block the rest.
  */
 START_TEST (test_non_obstructing)
 {
 	// Number of packets to send at once (the first of which will be blocked).
 	// This number is chosen such that the blocked packet will take as long to
-	// timeout as the rest take to go through the remaining unblocked channels.
+	// timeout as the rest take to go through the remaining unblocked slots.
 	const unsigned int n_packets = (N_TRIES*2*(N_OUTSTANDING - 1)) + 1;
 	
 	unsigned int i;

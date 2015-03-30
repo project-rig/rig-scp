@@ -28,7 +28,7 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
 	if (!os->send_req_active) {
 		os->active = false;
 	} else {
-		// We can't mark this channel as inactive until the send request completes
+		// We can't mark this slot as inactive until the send request completes
 		// (otherwise it would be reused too soon). As a result the cancelled flag
 		// is set which will cause the scp send request callback to finally flip the
 		// active flag.
@@ -40,12 +40,12 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
 		uv_timer_stop(&(os->timer_handle));
 	
 	// This flag is set if this cancellation also requires that another
-	// outstanding channel must also be cancelled(i.e. in the case of reads and
+	// outstanding slot must also be cancelled(i.e. in the case of reads and
 	// writes).
 	bool others_to_cancel = false;
 	// If this is a read/write, several things may require cancelling
 	if (os->type == RS__REQ_READ || os->type == RS__REQ_WRITE) {
-		// Find the other outstanding channels which are performing the same
+		// Find the other outstanding slots which are performing the same
 		// read/write request which must be cancelled too.
 		for (i = 0; i < conn->n_outstanding; i++) {
 			rs__outstanding_t *other_os = conn->outstanding + i;
@@ -62,7 +62,7 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
 	}
 	
 	// Send the user callback indicating failiure. If this is a read/write
-	// request, multiple outstanding channels may be cancelled and to prevent the
+	// request, multiple outstanding slots may be cancelled and to prevent the
 	// user callback being called multiple times, only the last one to be
 	// cancelled will raise the callback.
 	if (!others_to_cancel) {
@@ -84,8 +84,8 @@ rs__cancel_outstanding(rs_conn_t *conn, rs__outstanding_t *os,
 	
 	// If this is a read/write, several things may require cancelling
 	if (os->type == RS__REQ_READ || os->type == RS__REQ_WRITE) {
-		// Find the other outstanding channels which are performing the same
-		// read/write request and cancel them too.
+		// Find the other outstanding slots which are performing the same read/write
+		// request and cancel them too.
 		for (i = 0; i < conn->n_outstanding; i++) {
 			rs__outstanding_t *other_os = conn->outstanding + i;
 			if (// Skip things which have already been cancelled
