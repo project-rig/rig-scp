@@ -38,7 +38,8 @@ typedef struct rs_conn rs_conn_t;
  * @param arg1 Argument 1
  * @param arg2 Argument 2
  * @param arg3 Argument 3
- * @param data Data (and its length) included with the response.
+ * @param data Data (and its length) included with the response. This buffer may
+ *             be safely freed/reused as of this callback's arrival.
  * @param cb_data The pointer supplied when registering the callback.
  */
 typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
@@ -64,8 +65,8 @@ typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
  * @param cmd_rc If error is RS_EBAD_RC, this field will be the cmd_rc returned
  *               in the first bad reply to arrive. If error is 0, the value of
  *               this argument is undefined.
- * @param data The buffer containing the read data or written data unchanged
- *             for read and write commands respectively.
+ * @param data The buffer containing the read data or written data. This buffer
+ *             may be safely freed/reused as of this callback's arrival.
  * @param cb_data The pointer supplied when registering the callback.
  */
 typedef void (*rs_rw_cb)(rs_conn_t *conn,
@@ -125,12 +126,13 @@ rs_conn_t *rs_init(uv_loop_t *loop,
  * @param arg2 Argument 2
  * @param arg3 Argument 3
  * @param data The payload data (and its length) to send with the packet. Must
- *             be allocated by the sender. When the response/acknowledge to the
- *             packet is returned, the data sent with it will be written to the
- *             same buffer supplied and the length field updated accordingly. If
- *             the data supplied is longer than the scp_data_length supplied
- *             during initialisation (less the space saved by using unused
- *             argument fields) the data will be silently truncated.
+ *             be allocated by the sender and remain valid until the callback
+ *             function is called. When the response/acknowledge to the packet
+ *             is returned, the data sent with it will be written to the same
+ *             buffer supplied and the length field updated accordingly. If the
+ *             data supplied is longer than the scp_data_length supplied during
+ *             initialisation (less the space saved by using unused argument
+ *             fields) the data will be silently truncated.
  * @param data_max_len The maximum length of the data buffer. If the received
  *                     response is longer than this value (or the
  *                     scp_data_length value provided during initialisation,
@@ -163,7 +165,8 @@ int rs_send_scp(rs_conn_t *conn,
  * @param dest_addr The address of the chip to send the packet to.
  * @param dest_cpu The CPU number to send the packet to.
  * @param addr The address to write the data to.
- * @param data The data to write to the machine.
+ * @param data The data to write to the machine. Must remain valid until the
+ *             callback function is called.
  * @param cb A callback function which will be called when the write completes.
  * @param cb_data User-supplied data that will be passed to the callback
  *                function.
@@ -185,7 +188,8 @@ int rs_write(rs_conn_t *conn,
  * @param dest_cpu The CPU number to send the packet to.
  * @param addr The address to write the data to.
  * @param data A data buffer whose length will be used to determine the amount
- *             of data to read back.
+ *             of data to read back. Must remain valid until the callback
+ *             function is called.
  * @param cb A callback function which will be called once the read is complete.
  * @param cb_data User-supplied data that will be passed to the callback
  *                function.
@@ -217,7 +221,8 @@ void rs_free(rs_conn_t *conn, rs_free_cb cb, void *cb_data);
 
 
 /**
- * Error number returned when a read or write command receives a bad response.
+ * Error number returned when a read or write command receives a bad response
+ * code.
  */
 #define RS_EBAD_RC 1
 
