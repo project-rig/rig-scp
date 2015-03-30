@@ -247,6 +247,10 @@ struct rs_conn {
 	// A flag which indicates that this structure should be freed as soon as
 	// possible.
 	bool free;
+	
+	// A callback function and data to call when the free operation completes
+	rs_free_cb free_cb;
+	void *free_cb_data;
 };
 
 

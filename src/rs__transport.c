@@ -69,7 +69,7 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 	// If we were waiting on this callback before freeing, we can now re-attempt
 	// the free and quit.
 	if (conn->free) {
-		rs_free(conn);
+		rs_free(conn, NULL, NULL);
 		return;
 	}
 	

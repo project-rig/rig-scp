@@ -142,7 +142,7 @@ Given the above description, the following observations are worth highlighting:
   * Discovery of the maximum allowed `scp_data_length`
   * Discovery of the maximum allowed `n_outstanding`
   * Discovery of available Ethernet connections
-  * Inteligently selecting which of a number of Rig SCP connections to use for a
+  * Intelligently selecting which of a number of Rig SCP connections to use for a
     given task
   * Generation and interpretation of all SCP commands excluding `CMD_WRITE` and
     `CMD_READ`.

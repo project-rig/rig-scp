@@ -39,6 +39,7 @@ rs_init(uv_loop_t *loop,
 	// Clear the 'free' flag since we don't wish to free the strucutre
 	// immediately!
 	conn->free = false;
+	conn->free_cb = NULL;
 	
 	// Initialise counters
 	conn->next_seq_num = 0;
@@ -232,7 +233,7 @@ rs__udp_handle_closed_cb(uv_handle_t *handle)
 {
 	rs_conn_t *conn = (rs_conn_t *)handle->data;
 	conn->udp_handle_closed = true;
-	rs_free(conn);
+	rs_free(conn, NULL, NULL);
 }
 
 
@@ -241,19 +242,25 @@ rs__timer_handle_closed_cb(uv_handle_t *handle)
 {
 	rs__outstanding_t *os = (rs__outstanding_t *)handle->data;
 	os->timer_handle_closed = true;
-	rs_free(os->conn);
+	rs_free(os->conn, NULL, NULL);
 }
 
 
 
 void
-rs_free(rs_conn_t *conn)
+rs_free(rs_conn_t *conn, rs_free_cb cb, void *cb_data)
 {
 	int i;
 	
 	// Set the free flag so that if the final free is postponed, the residual
 	// callbacks know to re-attempt freeing.
 	conn->free = true;
+	
+	// Store the callback and data (if supplied)
+	if (cb) {
+		conn->free_cb = cb;
+		conn->free_cb_data = cb_data;
+	}
 	
 	// Stop receiving data
 	uv_udp_recv_stop(&(conn->udp_handle));
@@ -296,7 +303,15 @@ rs_free(rs_conn_t *conn)
 		free(conn->outstanding[i].packet.base);
 	free(conn->outstanding);
 	rs__q_free(conn->request_queue);
+	
+	// Just before freeing the main struct, take a copy of the callback function
+	cb = conn->free_cb;
+	cb_data = conn->free_cb_data;
 	free(conn);
+	
+	// Call the callback (if defined)
+	if (cb)
+		cb(cb_data);
 }
 
 

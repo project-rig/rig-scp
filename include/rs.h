@@ -25,21 +25,21 @@ typedef struct rs_conn rs_conn_t;
  * Callback function type for rs_send_scp commands.
  *
  * @param conn The SCP connection through which the packet was sent.
- * @param error 0 if a response was successfuly received.  Note that the user is
- *              responsible for checking cmd_rc to check if the return code
+ * @param error 0 if a response was successfully received.  Note that the user
+ *              is responsible for checking cmd_rc to check if the return code
  *              indicates an error occurred. If non-zero, all packet related
  *              fields have undefined values and the data buffer will contain
  *              undefined data. The rs_err_name and rs_strerror functions can be
  *              used to yield a human-readable error message. Negative errors
  *              correspond with libuv errors, positive errors with Rig SCP.
- * @param cmd_rc The command return code recieved in response to an SCP packet.
+ * @param cmd_rc The command return code received in response to an SCP packet.
  * @param n_args The number of arguments decoded (as indicated when sending the
  *               packet). Arguments not decoded will have undefined values.
  * @param arg1 Argument 1
  * @param arg2 Argument 2
  * @param arg3 Argument 3
  * @param data Data (and its length) included with the response.
- * @param cb_data The pointer suplied when registering the callback.
+ * @param cb_data The pointer supplied when registering the callback.
  */
 typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
                                int error,
@@ -56,7 +56,7 @@ typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
  * Callback function type for rs_read/rs_write command completion.
  *
  * @param conn The SCP connection through which the packet was sent.
- * @param error 0 if a response was successfuly received. If non-zero, the read
+ * @param error 0 if a response was successfully received. If non-zero, the read
  *              data buffer's contents will be undefined. The rs_err_name and
  *              rs_strerror functions can be used to yield a human-readable
  *              error message. Negative errors correspond with libuv errors,
@@ -66,13 +66,21 @@ typedef void (*rs_send_scp_cb)(rs_conn_t *conn,
  *               this argument is undefined.
  * @param data The buffer containing the read data or written data unchanged
  *             for read and write commands respectively.
- * @param cb_data The pointer suplied when registering the callback.
+ * @param cb_data The pointer supplied when registering the callback.
  */
 typedef void (*rs_rw_cb)(rs_conn_t *conn,
                          int error,
                          uint16_t cmd_rc,
                          uv_buf_t data,
                          void *cb_data);
+
+
+/**
+ * Callback function type for rs_free completion.
+ *
+ * @param cb_data The pointer supplied when registering the callback.
+ */
+typedef void (*rs_free_cb)(void *cb_data);
 
 
 /**
@@ -159,7 +167,7 @@ int rs_send_scp(rs_conn_t *conn,
  * @param cb A callback function which will be called when the write completes.
  * @param cb_data User-supplied data that will be passed to the callback
  *                function.
- * @returns 0 if successfuly queued, non-zero otherwise.
+ * @returns 0 if successfully queued, non-zero otherwise.
  */
 int rs_write(rs_conn_t *conn,
              uint16_t dest_addr,
@@ -181,7 +189,7 @@ int rs_write(rs_conn_t *conn,
  * @param cb A callback function which will be called once the read is complete.
  * @param cb_data User-supplied data that will be passed to the callback
  *                function.
- * @returns 0 if successfuly queued, non-zero otherwise.
+ * @returns 0 if successfully queued, non-zero otherwise.
  */
 int rs_read(rs_conn_t *conn,
             uint16_t dest_addr,
@@ -194,11 +202,18 @@ int rs_read(rs_conn_t *conn,
 /**
  * Free any resources used by an SCP connection.
  *
- * Note: this command may actually free resources at some point in the future.
- * Specifically, the outgoing packet buffer must be flushed which requires
- * running the libuv event loop.
+ * This command cancels any incomplete requests immediately with an error
+ * RS_EFREE. Note that this command does not complete immediately and instead
+ * relies on the libuv event loop running for a short time.
+ *
+ * @param conn The connection to free. This should be considered invalid
+ *             immediately after calling this function.
+ * @param cb A callback to call when the free operation is complete or NULL if
+ *           no callback is required. Warning: this is the only function in this
+ *           library which accepts a NULL callback!
+ * @param cb_data A user-defined pointer to be passed to the callback function.
  */
-void rs_free(rs_conn_t *conn);
+void rs_free(rs_conn_t *conn, rs_free_cb cb, void *cb_data);
 
 
 /**

@@ -344,7 +344,9 @@ static void setup(void) {
 
 
 static void teardown(void) {
-	rs_free(conn);
+	// No need for a callback since this will be the last thing in the event loop
+	// and thus the loop will end itself.
+	rs_free(conn, NULL, NULL);
 	conn = NULL;
 	
 	mm_free(mm);

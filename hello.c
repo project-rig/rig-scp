@@ -97,6 +97,7 @@ void write_callback(rs_conn_t *conn,
                     uint16_t cmd_rc,
                     uv_buf_t data,
                     void *cb_data);
+void conn_freed_callback(void *cb_data);
 
 // Flag indicating we've received a response to the CMD_VER command from each
 // core. (We use this to determine when all the CMD_VER commands have finished.)
@@ -199,16 +200,25 @@ main(int argc, char *argv[])
 	
 	// Finally we need to close the connection and free all the resources used by
 	// the connection.
-	rs_free(conn);
+	rs_free(conn, conn_freed_callback, NULL);
 	
 	// Due to the slightly awkward way libuv works, the free command actually
 	// requires the libuv event loop to run for a short time... Once the
-	// connection has been freed, the event loop will become empty and
-	// automatically terminate itself.
+	// connection has been freed our callback will once again call uv_stop and the
+	// event loop will terminate.
 	uv_run(loop, UV_RUN_DEFAULT);
 	
 	return 0;
 }
+
+
+void
+conn_freed_callback(void *cb_data)
+{
+	printf("Connection freed!\n");
+	uv_stop(loop);
+}
+
 
 
 /**
@@ -330,7 +340,7 @@ write_callback(rs_conn_t *conn,
 	// Re-start timing...
 	last_time = uv_now(loop);
 	
-	printf("Reading back %u bytes of random data from 0x%08X...\n",
+	printf("Reading back %u bytes from 0x%08X...\n",
 	       DATA_LEN, TEST_ADDRESS);
 	
 	// Now that the write has completed, lets read back the data to check it came
@@ -363,16 +373,16 @@ read_callback(rs_conn_t *conn,
 		abort();
 	}
 	
-	printf("Read complete in %0.0f ms! Throughput = %0.3f Mbit/s.\n",
+	printf("Read complete in %0.0f ms! Throughput = %0.3f Mbit/s.\n\n",
 	       (double)(uv_now(loop) - last_time),
 	       (DATA_LEN * 8.0) / ((uv_now(loop) - last_time) / 1000.0)
 	       / 1024.0 / 1024.0);
 	
 	// Check the read data matches what we wrote before
 	if (memcmp(read_data, write_data, DATA_LEN) == 0) {
-		printf("The data read back matched the data written!\n");
+		printf("The data read back matched the data written!\n\n");
 	} else {
-		printf("ERROR: The data read did not match the data written!\n");
+		printf("ERROR: The data read did not match the data written!\n\n");
 	}
 	
 	// And that's the end of this simple example! Stop the event loop.
