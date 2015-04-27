@@ -38,7 +38,7 @@ Implementation                                              | Version | Read (MB
 ----------------------------------------------------------- | ------- | ------------- | --------------
 Rig SCP (this)                                              | 94121f7 | 29.8          | 32.1
 [ybug](https://github.com/SpiNNakerManchester/ybug)         | 1.33    | 6.5           | 6.4
-[Rig](https://github.com/project-rig/rig)                   | dc97817 | 5.1           | 5.0
+[Rig](https://github.com/project-rig/rig)                   | f1393f3 | 6.1           | 6.1
 [SpiNNMan](https://github.com/SpiNNakerManchester/SpiNNMan) | 3eab5ee | 4.0           | 4.1
 
 
