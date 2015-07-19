@@ -1,0 +1,16 @@
+# Compilation artefacts and results
+*.pyc
+*.o
+*.so
+*.dll
+
+# Packaging stuff
+*.egg-info/
+*.egg
+
+# Unit test stuff
+.tox/
+
+
+# Vi[m] swap files
+# *.swp
