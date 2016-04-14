@@ -6,9 +6,22 @@
  * of CMD_VER (a.k.a. sver) SCP commands and prints the response and
  * demonstrates reading and writing of data from a machine.
  *
- * Once compiled with `make hello`, the usage is like so:
+ * Compile with:
  *
- *     ./hello hostname scp_data_length n_outstanding
+ *     gcc -std=c99 -D_GNU_SOURCE\
+ *         -Wall -Werror -pedantic \
+ *         -lcheck -luv \
+ *         -O3 -g \
+ *         ../rig_c_scp/rs*.c -I../rig_c_scp \
+ *         hello.c \
+ *         -o hello
+ *
+ * (NB: -D_GNU_SOURCE is a workaround for a libuv compilation bug, see
+ * https://github.com/joyent/libuv/issues/551)
+ *
+ * Once compiled the usage is like so:
+ *
+ *     ./hello hostname scp_data_length n_outstanding [x y]
  *
  * * hostname -- the SpiNNaker machine to communicate with. The machine should
  *               be already booted and not be running any applications.
@@ -16,6 +29,7 @@
  *                      (in bytes), typically 256.
  * * n_outstanding -- the number of simultaneous commands which Rig SCP may
  *                    issue to the machine at once, typically between 1 and 8.
+ * * x y -- (optional) the chip coordinates to communicate with.
  *
  * Note: In general, one should query the machine to determine the appropriate
  * values for scp_data_length and n_outstanding.
@@ -60,8 +74,8 @@
 
 
 // The destination chip for all commands sent by this example program.
-static int dest_chip_x = 1;
-static int dest_chip_y = 1;
+static int dest_chip_x = 255;
+static int dest_chip_y = 255;
 #define DEST_CHIP ((dest_chip_x) << 8 | (dest_chip_y))
 
 
@@ -157,7 +171,6 @@ main(int argc, char *argv[])
 	conn = rs_init(loop,
 	               addrinfo->ai_addr,
 	               scp_data_length,
-	               TIMEOUT,
 	               N_TRIES,
 	               n_outstanding);
 	assert(conn);
@@ -198,6 +211,7 @@ main(int argc, char *argv[])
 		            0, 0, 0, // Args1-3 just set arbitrarily.
 		            data, // No data to be sent but we'll get the response data here
 		            scp_data_length, // Maximum length of response
+		            TIMEOUT, // Timeout between retransmit attempts for this packet
 		            cmd_ver_callback, // Callback on completion.
 		            &(got_cmd_ver_response[i]));
 	}
@@ -278,10 +292,11 @@ cmd_ver_callback(rs_conn_t *conn,
 	unsigned int x = (arg1 >> 24) & 0xFF;
 	unsigned int y = (arg1 >> 16) & 0xFF;
 	unsigned int cpu_num = (arg1 >> 0) & 0xFF;
-	const char *vers_string = data.base;
-	double vers_num = (double)((arg2 >> 16) & 0xFFFF) / 100.0;
-	printf("Got response from (%u, %u, %2u) with software '%s' v%1.2f.\n",
-	       x, y, cpu_num, vers_string, vers_num);
+	assert(((arg2 >> 16) & 0xFFFF) == 0xFFFF);  // Check for new-style version
+	const char *app_string = data.base;
+	const char *vers_string = data.base + strlen(app_string) + 1;
+	printf("Got response from (%u, %u, %2u) with software '%s' v%s.\n",
+	       x, y, cpu_num, app_string, vers_string);
 	
 	// Free the buffer we used for the response data
 	free(data.base);
@@ -324,6 +339,7 @@ cmd_ver_callback(rs_conn_t *conn,
 		         0, // Write to CPU 0's memory
 		         TEST_ADDRESS,
 		         data,
+		         TIMEOUT, // Timeout for retry attempts for each piece of data
 		         write_callback, // Callback when the write completes.
 		         NULL);
 	}
@@ -375,6 +391,7 @@ write_callback(rs_conn_t *conn,
 	        0, // Read from CPU 0's memory
 	        TEST_ADDRESS,
 	        r_data,
+	        TIMEOUT, // Timeout for retry attempts for each piece of data
 	        read_callback, // Callback when the read completes.
 	        NULL);
 }

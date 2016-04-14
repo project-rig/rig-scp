@@ -336,7 +336,6 @@ static void setup(void) {
 	conn = rs_init(loop,
 	               (struct sockaddr *)&conn_addr,
 	               MM_SCP_DATA_LENGTH,
-	               TIMEOUT,
 	               N_TRIES,
 	               N_OUTSTANDING);
 	ck_assert(conn);
@@ -406,6 +405,7 @@ START_TEST (test_single_scp)
 	                       0x11121314, 0x21222324, 0x31323334,
 	                       data,
 	                       data.len,
+	                       TIMEOUT,
 	                       send_scp_cb, &cb_data));
 	
 	// Wait for a reply
@@ -461,6 +461,7 @@ START_TEST (test_single_scp_timeout)
 	                       0, 0, 0, 0, 0, // No arguments
 	                       data,
 	                       data.len,
+	                       TIMEOUT,
 	                       send_scp_cb, &cb_data));
 	
 	// Wait for a reply
@@ -518,6 +519,7 @@ START_TEST (test_single_scp_retransmit)
 	                       0, 0, 0, 0, 0, // No arguments
 	                       data,
 	                       data.len,
+	                       TIMEOUT,
 	                       send_scp_cb, &cb_data));
 	
 	// Wait for a reply
@@ -588,6 +590,7 @@ START_TEST (test_single_packet_read)
 	                   0, // Send no duplicates
 	                   addr,
 	                   data,
+	                   TIMEOUT,
 	                   rw_cb, &cb_data));
 	
 	// Wait for a reply
@@ -665,6 +668,7 @@ START_TEST (test_single_packet_write)
 	                    0, // Send no duplicates
 	                    addr,
 	                    data,
+	                    TIMEOUT,
 	                    rw_cb, &cb_data));
 	
 	// Wait for a reply
@@ -745,6 +749,7 @@ START_TEST (test_multiple_scp)
 		                       1, 1, i, 0, 0, // The packet num as an argument
 		                       data,
 		                       data.len,
+		                       TIMEOUT,
 		                       send_scp_cb, &(cb_data[i])));
 	
 	// Wait for a reply
@@ -831,6 +836,7 @@ START_TEST (test_multiple_packet_read)
 	                   3, // Send some duplicates
 	                   addr,
 	                   data,
+	                   TIMEOUT,
 	                   rw_cb, &cb_data));
 	
 	// Wait for a reply
@@ -916,6 +922,7 @@ START_TEST (test_multiple_packet_write)
 	                    3, // Send some duplicates
 	                    addr,
 	                    data,
+	                    TIMEOUT,
 	                    rw_cb, &cb_data));
 	
 	// Wait for a reply
@@ -991,6 +998,7 @@ START_TEST (test_non_obstructing)
 		                       1, 1, i, 0, 0, // The packet num as an argument
 		                       data,
 		                       data.len,
+		                       TIMEOUT,
 		                       send_scp_cb, &(cb_data[i])));
 	
 	// Wait for a reply
@@ -1073,6 +1081,7 @@ START_TEST (test_read_timeout)
 	                   0, // Send no duplicates
 	                   addr,
 	                   data,
+	                   TIMEOUT,
 	                   rw_cb, &cb_data));
 	
 	// Wait for a reply
@@ -1149,6 +1158,7 @@ START_TEST (test_read_fail)
 	                   0, // Send no duplicates
 	                   addr,
 	                   data,
+	                   TIMEOUT,
 	                   rw_cb, &cb_data));
 	
 	// Wait for a reply
