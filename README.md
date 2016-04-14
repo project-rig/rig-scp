@@ -1,7 +1,7 @@
-Rig SCP
-=======
+Rig C SCP
+=========
 
-Rig SCP is a low-level, high-performance C implementation of the [SpiNNaker
+Rig C SCP is a low-level, high-performance C implementation of the [SpiNNaker
 Command Protocol
 (SCP)](https://spinnaker.cs.manchester.ac.uk/tiki-index.php?page=Application+note+5+-+SCP+Specification)
 transport mechanism built on top of [libuv](http://docs.libuv.org/en/v1.x/).

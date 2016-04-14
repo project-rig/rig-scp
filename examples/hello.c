@@ -60,9 +60,9 @@
 
 
 // The destination chip for all commands sent by this example program.
-#define DEST_CHIP_X 0
-#define DEST_CHIP_Y 0
-#define DEST_CHIP ((DEST_CHIP_X) << 8 | (DEST_CHIP_Y))
+static int dest_chip_x = 1;
+static int dest_chip_y = 1;
+#define DEST_CHIP ((dest_chip_x) << 8 | (dest_chip_y))
 
 
 // A global pointer to the libuv event loop which we'll set and use later on...
@@ -118,14 +118,19 @@ int
 main(int argc, char *argv[])
 {
 	// First we'll parse the command line arguments
-	if (argc != 4) {
-		fprintf(stderr, "Expected 3 arguments: "
-		                "hostname scp_data_length n_outstanding\n");
+	if (argc != 4 && argc != 6) {
+		fprintf(stderr, "Expected 3 or 5 arguments, not %d: "
+		                "hostname scp_data_length n_outstanding [x y]\n",
+		                argc);
 		return -1;
 	}
 	const char *hostname = argv[1];
 	const size_t scp_data_length = (size_t)atoi(argv[2]);
 	const unsigned int n_outstanding = (unsigned int)atoi(argv[3]);
+	if (argc >= 6) {
+		dest_chip_x = atoi(argv[4]);
+		dest_chip_y = atoi(argv[5]);
+	}
 	
 	// Get a reference to the libuv event loop; we'll use this later!
 	loop = uv_default_loop();
