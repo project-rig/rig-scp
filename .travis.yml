@@ -1,10 +1,12 @@
-sudo: false
+# Sudo required for libuv dependency
+sudo: true
 language: python
 python:
         - 2.7
         - 3.4
         - 3.5
 install:
+        - sudo apt-get install libuv-dev
         - python setup.py install
         - pip install -r requirements-test.txt
         - pip install codecov
