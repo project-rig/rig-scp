@@ -1,5 +1,5 @@
 /**
- * A simple example program demonstrating the Rig SCP library API.
+ * A simple example program demonstrating the 'C' Rig SCP library API.
  *
  * This program is written in a tutorial style and is designed to (hopefully)
  * make sense when read through in order. The program simply sends out a handful

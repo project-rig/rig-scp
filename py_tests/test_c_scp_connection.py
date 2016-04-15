@@ -48,7 +48,7 @@ def test_double_close(c):
 def test_actions_fail_after_close(c):
     c.close()
     with pytest.raises(IOError):
-        c.write(0, 0, 0, 0xDEADBEEF, b"HELLO")
+        c.write(0xDEADBEEF, b"HELLO", 0, 0, 0)
 
 
 def test_wakeup_queue(c):
@@ -130,7 +130,7 @@ def test_write(mm, c, no_callback):
     on_success = Mock(side_effect=(lambda *_, **__: e.set()))
     on_error = Mock(side_effect=(lambda *_, **__: e.set()))  # pragma: no cover
 
-    c.write(x=1, y=2, p=3, address=0xDEADBEEF, data=b"FOOBAR",
+    c.write(0xDEADBEEF, b"FOOBAR", x=1, y=2, p=3,
             on_success=None if no_callback else on_success, on_error=on_error)
 
     pkt, resp = mm.handle_scp()
@@ -165,8 +165,7 @@ def test_read(mm, c, no_callback):
     on_error = Mock(side_effect=(lambda *_, **__: e.set()))  # pragma: no cover
 
     buffer = bytearray(6)
-    c.read(x=1, y=2, p=3, address=0xDEADBEEF, length=6,
-           buffer=buffer,
+    c.read(0xDEADBEEF, 6, buffer, x=1, y=2, p=3,
            on_success=None if no_callback else on_success,
            on_error=on_error)
 
@@ -202,8 +201,8 @@ def test_read(mm, c, no_callback):
 @pytest.mark.parametrize("error_cb", [True, False])
 @pytest.mark.parametrize("send_cmd,send_args",
                          [("send_scp", (1, 2, 3, 0)),
-                          ("write", (1, 2, 3, 0, b"hello")),
-                          ("read", (1, 2, 3, 0, 5, bytearray(5)))])
+                          ("write", (0, b"hello", 1, 2, 3)),
+                          ("read", (0, 5, bytearray(5), 1, 2, 3))])
 @pytest.mark.parametrize("cmd_rc", FATAL_SCP_RETURN_CODES)
 def test_error_bad_rc(mm, c, send_cmd, send_args, cmd_rc, error_cb):
     e = Event()
@@ -237,8 +236,8 @@ def test_error_bad_rc(mm, c, send_cmd, send_args, cmd_rc, error_cb):
 @pytest.mark.parametrize("error_cb", [True, False])
 @pytest.mark.parametrize("send_cmd,send_args",
                          [("send_scp", (1, 2, 3, 0)),
-                          ("write", (1, 2, 3, 0, b"hello")),
-                          ("read", (1, 2, 3, 0, 5, bytearray(5)))])
+                          ("write", (0, b"hello", 1, 2, 3, )),
+                          ("read", (0, 5, bytearray(5), 1, 2, 3))])
 def test_error_timeout(mm, c, send_cmd, send_args, error_cb):
     e = Event()
     on_success = Mock(  # pragma: no cover
@@ -272,8 +271,8 @@ def test_error_timeout(mm, c, send_cmd, send_args, error_cb):
 @pytest.mark.parametrize("error_cb", [True, False])
 @pytest.mark.parametrize("send_cmd,send_args",
                          [("send_scp", (1, 2, 3, 0)),
-                          ("write", (1, 2, 3, 0, b"hello")),
-                          ("read", (1, 2, 3, 0, 5, bytearray(5)))])
+                          ("write", (0, b"hello", 1, 2, 3, )),
+                          ("read", (0, 5, bytearray(5), 1, 2, 3))])
 def test_error_free(mm, c, send_cmd, send_args, error_cb):
     e = Event()
     on_success = Mock(  # pragma: no cover
@@ -312,7 +311,7 @@ def test_scp_data_length(mm, c):
 
     # Should get two SCP commands for a 20-byte block
     e = Event()
-    c.write(0, 0, 0, 0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST",
+    c.write(0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST", 0, 0, 0,
             on_success=e.set)
     mm.handle_scp()
     mm.handle_scp()
@@ -322,7 +321,7 @@ def test_scp_data_length(mm, c):
     # accordingly
     e = Event()
     c.scp_data_length = 5
-    c.write(0, 0, 0, 0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST",
+    c.write(0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST", 0, 0, 0,
             on_success=e.set)
     mm.handle_scp()
     mm.handle_scp()
@@ -337,7 +336,7 @@ def test_n_outstanding(mm, c):
 
     # Should timeout having only sent the first packet
     e = Event()
-    c.write(0, 0, 0, 0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST",
+    c.write(0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST", 0, 0, 0,
             on_success=e.set, on_error=(lambda _: e.set()), timeout=0.01)
     e.wait()
     mm.recv_scp()
@@ -347,7 +346,7 @@ def test_n_outstanding(mm, c):
     # Increasing n_outstanding, should timeout having sent both writes
     e = Event()
     c.n_outstanding = 2
-    c.write(0, 0, 0, 0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST",
+    c.write(0xDEADBEEF, b"ABCDEFGHIJKLMNOPQRST", 0, 0, 0,
             on_success=e.set, on_error=(lambda _: e.set()), timeout=0.01)
     e.wait()
     mm.recv_scp()

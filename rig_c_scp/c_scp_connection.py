@@ -15,7 +15,8 @@ from _rig_c_scp import ffi, lib
 
 
 class CSCPConnection(object):
-    """A Python wrapper around the high performance 'Rig C SCP' SCP wrapper.
+    """A Python wrapper around the high performance 'Rig C SCP' SCP
+    implementation.
 
     The :py:class:`.CSCPConnection` object spawns a background thread in which
     the Rig C SCP/libuv event loop executes. SCP/read/write commands may be
@@ -27,6 +28,31 @@ class CSCPConnection(object):
 
     def __init__(self, hostname, port=SCP_PORT, n_tries=5,
                  n_outstanding=1, scp_data_length=256):
+        """Create a new connection.
+
+        Parameters
+        ----------
+        hostname : str
+            The hostname or IP of the machine to communicate with.
+        port : int
+            The port number to use.
+        n_tries : int
+            The number of attempts to make in sending an SCP command before
+            giving up. Must be at least 1. Once set this is fixed for this
+            object.
+        n_outstanding : int
+            The number of unacknowledged SCP commands which may be sent before
+            waiting for response packets to arrive. Must be at least 1 and only
+            set higher than this according to the capabilities reported by the
+            remote device (i.e. the number of transient IP tags available).
+            May be changed by setting the :py:attr:`.n_outstanding` attribute.
+        scp_data_length : int
+            The maximum number of bytes of data payload to allow an SCP packet
+            to have. May safely be set to 256 but may be made larger if the
+            remote device supports it (e.g. as reported by VERSION command
+            response).  May be changed by setting the
+            :py:attr:`.scp_data_length` attribute.
+        """
         self._hostname = hostname
         self._port = port
         self._n_tries = n_tries
@@ -37,19 +63,22 @@ class CSCPConnection(object):
         self._lock = Lock()
 
         # Calls queued for execution in the libuv thread. This queue just
-        # contains a series of zero-argument functions. Protected by
-        # self._lock.
+        # contains a series of zero-argument functions. It is filled by
+        # functions decorated with the :py:meth:`._execute_in_bg_thread`
+        # decorator. It is drained by the :py:meth:`._on_wakeup` method.
+        # Protected by self._lock.
         self._queue = deque()
 
-        # Set to true when the connection is being shut down. Protected by
-        # self._lock.
+        # Flag set to true when the connection is being shut down. Once set
+        # this may not be cleared. Protected by self._lock.
         self._closed = False
 
-        # Mapping from outstanding _Callback objects to their CFFI handles.
-        # Used to keep the handles alive until the callback is used.
+        # Mapping from outstanding :py:class:`_Callback` objects to their CFFI
+        # handles.  Used to keep the handles alive until the callback is
+        # completed.
         self._cb_handles = {}
 
-        # Create a sockaddr for the host (and resolve the hostname)
+        # Resolve the addrinfo for the supplied host and port number.
         self._addrinfo = lib.hostname_to_addrinfo(hostname.encode("UTF-8"),
                                                   str(port).encode("UTF-8"))
         if self._addrinfo == ffi.NULL:
@@ -92,7 +121,14 @@ class CSCPConnection(object):
         self._bg_thread.start()
 
     def close(self):
-        """Shut down the connection."""
+        """Shut down the connection.
+
+        If any commands/reads/writes are still in progress, calling this
+        function may result in them returning an error.
+
+        Once called, no further methods (except :py:meth:`.close`) may be
+        called on this object.
+        """
         # Trigger shutdown
         with self._lock:
             self._closed = True
@@ -102,7 +138,8 @@ class CSCPConnection(object):
         self._bg_thread.join()
 
     def _wakeup(self):
-        """Wakeup the libuv thread and cause calls in `_queue` to be processed.
+        """Internal use only. Wakeup the libuv thread and cause calls in
+        :py:attr:`._queue` to be processed.
 
         May be called from any thread. Schedules :py:meth:`._on_wakeup` to be
         called on this object by this object's libuv mainloop.
@@ -110,12 +147,16 @@ class CSCPConnection(object):
         lib.uv_async_send(self._wakeup_handle)
 
     def _on_wakeup(self):
-        """Callback called in the libuv thread once _wakeup has been called.
+        """Internal use only. Callback called in the libuv thread once _wakeup
+        has been called.
 
-        This method forwards queued calls
+        This method processes any queued requests and, when the connection is
+        closed and the queue has been drained, frees the connection.
         """
-        # Handle all queued actions.  Does nothing while not connected. Once
-        # the connection is recreated, this wakeup function is called again.
+        # Handle all queued actions. If the connection is currently being
+        # recreated (e.g. to change n_outstanding) the queue is not processed
+        # until wakeup function is called again upon completion of the
+        # recreation of the connection.
         while self._queue and self._conn is not None:
             with self._lock:
                 if self._queue:
@@ -138,8 +179,8 @@ class CSCPConnection(object):
                     self._rs_free()
 
     def _execute_in_bg_thread(f):
-        """A decorator which causes calls to a method to be enqueued and
-        executed in the libuv thread.
+        """Internal use only. A decorator which causes calls to a method to be
+        enqueued and executed in the libuv thread.
         """
         @wraps(f)
         def _f(self, *args, **kwargs):
@@ -152,7 +193,7 @@ class CSCPConnection(object):
         return _f
 
     def _rs_init(self):
-        """Initialise a new Rig C SCP connection."""
+        """Internal use only. Initialise a new Rig C SCP connection."""
         self._conn = lib.rs_init(self._loop,
                                  self._addrinfo.ai_addr,
                                  self._scp_data_length,
@@ -162,27 +203,32 @@ class CSCPConnection(object):
             "Failed to allocate/initialise Rig C SCP connection."
 
     def _rs_free(self):
-        """Shutdown and free the current Rig C SCP connection."""
+        """Internal use only. Shutdown and free the current Rig C SCP
+        connection.
+        """
         lib.rs_free(self._conn, lib.free_cb, self._self)
         self._conn = None
 
     def _on_free(self):
-        """Callback when the current Rig C SCP connection has been freed."""
-        # If the connection has been closed, shut down the background
-        # thread, otherwise re-create the connection
+        """Internal use only. Callback when the current Rig C SCP connection
+        has been freed."""
+        # If the connection has been closed, shut down the main loop (and
+        # consequently the background thread), otherwise re-create the
+        # connection.
         if self._closed:
             lib.uv_stop(self._loop)
             return
         else:
-            # NB: Executed iff self._closed is false.
             self._rs_init()
 
             # Process any tasks queued while the previous connection was
-            # freed.
+            # being freed since the wakeup callback does not process calls
+            # during this time.
             self._on_wakeup()
 
     def _run_as_callback(cb_name):
-        """Decorator which runs the given *method* as a C-registered callback.
+        """Internal use only. Decorator which runs the given *method* as a
+        C-registered callback.
 
         Example usage::
 
@@ -192,7 +238,7 @@ class CSCPConnection(object):
             ...         # ...
 
         In this example, a C function has been "extern python"'d in the CFFI
-        wrapped called 'some_cb' whose function signature looks something
+        wrapper called 'some_cb' whose function signature looks something
         like::
 
             extern "Python" void some_cb(rs_conn_t *conn,
@@ -214,7 +260,11 @@ class CSCPConnection(object):
         def wrap(f):
             # Associate the callback function with its C prototype
             def c_callback(*args):
+                # Get the _Callback object
                 callback = ffi.from_handle(args[-1])
+
+                # Strip the conn and add the _Callback reference and finally
+                # call the method against the correct CSCPConnection object.
                 args = list(args[1:-1]) + [callback]
                 f(callback.connection, *args)
             ffi.def_extern(cb_name)(c_callback)
@@ -222,8 +272,27 @@ class CSCPConnection(object):
         return wrap
 
     def _report_error(self, error, cmd_rc, callback):
-        """Report an error via a callback if one has occurred. Returns True if
-        an error occurred."""
+        """Internal use only. Report any error (in a human-readble fashion) via
+        an on_error callback and returns True. If no error occurred do nothing
+        and return False.
+
+        Parameters
+        ----------
+        error : int
+            The error code from Rig SCP. (This is 0 when no error has
+            occurred).
+        cmd_rc : int
+            The return code reported in the Rig SCP callback (indicates the bad
+            RC if a bad SCP response is received.
+        callback : :py:class:`_Callback`
+            Container which contains the on_error function to call.
+
+        Returns
+        -------
+        bool
+            True if an error occurred (and has now been reported) or False if
+            no error occurred.
+        """
         if error:
             # An error occurred, report this via the supplied callback (if
             # present).
@@ -254,9 +323,45 @@ class CSCPConnection(object):
 
     @_execute_in_bg_thread
     def send_scp(self, x, y, p, cmd, arg1=0, arg2=0, arg3=0, data=b'',
-                 expected_args=3, on_success=None, on_error=None,
-                 timeout=0.5):
-        """Send an SCP command."""
+                 expected_args=3, timeout=0.5, on_success=None, on_error=None):
+        """Asynchronously send an SCP command.
+
+        Parameters
+        ----------
+        x, y, p : int
+            The chip coordinates and CPU number to send the command to.
+        cmd : int
+            The command code to send.
+        arg1, arg2, arg3 : int
+            The command argument values (always sent).
+        data : bytes
+            The data to sent. The buffer provided must remain valid until one
+            of the callback functions is called.
+        expected_args : int
+            The number of arguments expected in the reply packet.
+        timeout : float
+            The number of seconds to wait for a response to this SCP packet
+            before retrying or giving up.
+        on_success : f(:py:class:`rig.machine_control.packet.SCPPacket`) or \
+                None
+            A callback function to call when the command recieves a response
+            with the "OK" return code. The packet object provided will contain
+            the following meaningful fields: cmd_rc, arg1, arg2, arg3 and data.
+            No other fields will contain meaningful data.
+
+            This function executes in the LibUV main loop and so should take
+            care to exit promptly.
+
+            If None, no callback is called on success.
+        on_error : f(:py:exec:`Exception`) or None
+            A callback function to call if the supplied SCP command fails for
+            some reason. An Exception object is provided as the sole argument.
+
+            This function executes in the LibUV main loop and so should take
+            care to exit promptly.
+
+            If None, no callback is called on error.
+        """
         cb = _Callback(self, on_success, on_error,
                        x=x, y=y, p=p, cmd=cmd,
                        n_args=3, arg1=arg1, arg2=arg2, arg3=arg3,
@@ -290,7 +395,8 @@ class CSCPConnection(object):
     @_run_as_callback("send_scp_cb")
     def _on_scp_cb(self, error, cmd_rc, n_args, arg1, arg2, arg3, data_buf,
                    callback):
-        """Callback in response to SCP command."""
+        """Internal use only. Callback in response to SCP command completing.
+        """
         self._cb_handles.pop(callback)
 
         try:
@@ -309,9 +415,39 @@ class CSCPConnection(object):
             lib.free(data_buf.base)
 
     @_execute_in_bg_thread
-    def write(self, x, y, p, address, data, on_success=None, on_error=None,
-              timeout=0.5):
-        """Perform a bulk write operation."""
+    def write(self, address, data, x, y, p=0, timeout=0.5,
+              on_success=None, on_error=None):
+        """Perform a bulk write operation.
+
+        Parameters
+        ----------
+        address : int
+            The memory address to write to.
+        data : bytes
+            A buffer containing the data to be written. The buffer provided
+            must remain valid until one of the callback functions is called.
+        x, y, p : int
+            The chip coordinates and CPU number to write to the memory of.
+        timeout : float
+            The number of seconds to wait for a response to any write packet
+            before retrying or giving up.
+        on_success : f() or None
+            A callback function to call when the write completes. No arguments
+            are passed.
+
+            This function executes in the LibUV main loop and so should take
+            care to exit promptly.
+
+            If None, no callback is called on success.
+        on_error : f(:py:exec:`Exception`) or None
+            A callback function to call if the write command fails for some
+            reason. An Exception object is provided as the sole argument.
+
+            This function executes in the LibUV main loop and so should take
+            care to exit promptly.
+
+            If None, no callback is called on error.
+        """
         cb = _Callback(self, on_success, on_error,
                        x=x, y=y, p=p, cmd=SCPCommands.write,
                        n_args=3, arg1=address, arg2=None, arg3=None,
@@ -340,7 +476,7 @@ class CSCPConnection(object):
 
     @_run_as_callback("write_cb")
     def _on_write_cb(self, error, cmd_rc, data_buf, callback):
-        """Callback in response to data write."""
+        """Internal use only. Callback in response to data write."""
         self._cb_handles.pop(callback)
         lib.free(data_buf.base)
 
@@ -349,9 +485,47 @@ class CSCPConnection(object):
                 callback.on_success()
 
     @_execute_in_bg_thread
-    def read(self, x, y, p, address, length, buffer,
+    def read(self, address, length, buffer, x, y, p=0,
              on_success=None, on_error=None, timeout=0.5):
-        """Perform a bulk read operation."""
+        """Perform a bulk read operation.
+
+        Parameters
+        ----------
+        address : int
+            The memory address to read from.
+        length : int
+            The number of bytes to read.
+        data : bytes
+            A buffer into which the data will be read. The buffer provided
+            must remain valid until one of the callback functions is called.
+            Once the callback has been called, this buffer will contain the
+            data read.
+
+            If the buffer is smaller than the length requested, the read is
+            truncated. If the buffer is larger than the length requested, only
+            the first length bytes of the buffer will be modified.
+        x, y, p : int
+            The chip coordinates and CPU number to read the memory of.
+        timeout : float
+            The number of seconds to wait for a response to any read packet
+            before retrying or giving up.
+        on_success : f(buffer) or None
+            A callback function to call when the read completes. A reference to
+            the (now populated) buffer provided is given as the sole argument.
+
+            This function executes in the LibUV main loop and so should take
+            care to exit promptly.
+
+            If None, no callback is called on success.
+        on_error : f(:py:exec:`Exception`) or None
+            A callback function to call if the read command fails for some
+            reason. An Exception object is provided as the sole argument.
+
+            This function executes in the LibUV main loop and so should take
+            care to exit promptly.
+
+            If None, no callback is called on error.
+        """
         cb = _Callback(self, on_success, on_error, buffer,
                        x=x, y=y, p=p, cmd=SCPCommands.read,
                        n_args=3, arg1=address, arg2=None, arg3=None,
@@ -377,7 +551,7 @@ class CSCPConnection(object):
 
     @_run_as_callback("read_cb")
     def _on_read_cb(self, error, cmd_rc, data_buf, callback):
-        """Callback in response to data read."""
+        """Internal use only. Callback in response to data read."""
         self._cb_handles.pop(callback)
 
         try:
@@ -429,17 +603,25 @@ class CSCPConnection(object):
 
 @ffi.def_extern()
 def free_cb(cb_data):
-    """Callback for rs_free."""
+    """C callback for rs_free."""
     ffi.from_handle(cb_data)._on_free()
 
 
 @ffi.def_extern()
 def async_cb(handle):
-    """Callback on libuv async events."""
+    """C callback on libuv async events."""
     ffi.from_handle(handle.data)._on_wakeup()
 
 
 class _Callback(object):
+    """Container used for callback information.
+
+    When most Rig SCP commands are executed, the callback function is passed a
+    handle pointing to an instance of this class. This is then used upon
+    command completion/error to determine what Python callback function to call
+    and what CSCPConnection object initiated the command.
+    """
+
     def __init__(self, connection, on_success, on_error, buffer=None,
                  x=None, y=None, p=None, cmd=None,
                  n_args=0, arg1=None, arg2=None, arg3=None, data=None):
@@ -465,6 +647,7 @@ class _Callback(object):
 
     @property
     def packet(self):
+        """Produce a packet object describing the request sent."""
         return SCPPacket(reply_expected=True, tag=0xff, dest_port=0,
                          dest_cpu=self.p, src_port=7, src_cpu=31,
                          dest_x=self.x, dest_y=self.y, src_x=0, src_y=0,
