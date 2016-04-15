@@ -9,10 +9,12 @@ setup(
     name="rig_c_scp",
     version=__version__,
     packages=find_packages(),
-    
+
     # Files required by CFFI wrapper
     package_data = {'rig_c_scp': ["rs.h", "rs.c",
                                   "rs__internal.h",
+                                  "rs__queue.h",
+                                  "rs__scp.h",
                                   "rs__cancel.c",
                                   "rs__process_queue.c",
                                   "rs__process_response.c",
