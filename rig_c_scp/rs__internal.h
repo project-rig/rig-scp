@@ -45,6 +45,9 @@ typedef struct {
 	// What type of request is this?
 	rs__req_type_t type;
 	
+	// Number of msec to wait before retransmitting this/these packet(s)
+	uint64_t timeout;
+	
 	// The address of the processor this request is destined for (X<<8 | Y)
 	uint16_t dest_addr;
 	
@@ -129,6 +132,9 @@ typedef struct {
 	// The sequence number allocated to the packet whose response is being awaited
 	uint16_t seq_num;
 	
+	// Number of msec to wait before retransmitting this/these packet(s)
+	uint64_t timeout;
+	
 	// The number of attempts made to transmit the current packet
 	unsigned int n_tries;
 	
@@ -205,9 +211,6 @@ typedef struct {
 struct rs_conn {
 	// Maximum number of bytes in an SCP packet's data field
 	size_t scp_data_length;
-	
-	// Number of msec to wait before retransmitting a packet
-	uint64_t timeout;
 	
 	// Number of transmission attempts before giving up (including the initial
 	// attempt)

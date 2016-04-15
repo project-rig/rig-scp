@@ -23,6 +23,7 @@ rs__process_queued_scp_packet(rs_conn_t *conn,
 	os->active = true;
 	os->type = RS__REQ_SCP_PACKET;
 	os->seq_num = conn->next_seq_num++;
+	os->timeout = req->timeout;
 	os->n_tries = 0;
 	
 	// Keep a pointer to the location to store the response
@@ -66,6 +67,7 @@ rs__process_queued_rw(rs_conn_t *conn,
 	os->type = req->type;
 	os->seq_num = conn->next_seq_num++;
 	os->data.rw.id = req->data.rw.id;
+	os->timeout = req->timeout;
 	os->n_tries = 0;
 	
 	// Slice off a chunk of the data as large as will fit in a packet

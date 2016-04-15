@@ -21,7 +21,6 @@ rs_conn_t *
 rs_init(uv_loop_t *loop,
         const struct sockaddr *addr,
         size_t scp_data_length,
-        uint64_t timeout,
         unsigned int n_tries,
         unsigned int n_outstanding)
 {
@@ -32,7 +31,6 @@ rs_init(uv_loop_t *loop,
 	conn->loop = loop;
 	conn->addr = addr;
 	conn->scp_data_length = scp_data_length;
-	conn->timeout = timeout;
 	conn->n_tries = n_tries;
 	conn->n_outstanding = n_outstanding;
 	
@@ -140,6 +138,7 @@ rs_send_scp(rs_conn_t *conn,
             uint32_t arg3,
             uv_buf_t data,
             size_t data_max_len,
+            uint64_t timeout,
             rs_send_scp_cb cb,
             void *cb_data)
 {
@@ -149,6 +148,7 @@ rs_send_scp(rs_conn_t *conn,
 	
 	// Queue up the supplied request
 	req->type = RS__REQ_SCP_PACKET;
+	req->timeout = timeout;
 	req->dest_addr = dest_addr;
 	req->dest_cpu = dest_cpu;
 	req->data.scp_packet.cmd_rc = cmd_rc;
@@ -174,6 +174,7 @@ rs_write(rs_conn_t *conn,
          uint8_t dest_cpu,
          uint32_t address,
          uv_buf_t data,
+         uint64_t timeout,
          rs_rw_cb cb,
          void *cb_data)
 {
@@ -183,6 +184,7 @@ rs_write(rs_conn_t *conn,
 	
 	// Queue up the supplied request
 	req->type = RS__REQ_WRITE;
+	req->timeout = timeout;
 	req->dest_addr = dest_addr;
 	req->dest_cpu = dest_cpu;
 	req->data.rw.id = conn->next_rw_id++;
@@ -204,6 +206,7 @@ rs_read(rs_conn_t *conn,
         uint8_t dest_cpu,
         uint32_t address,
         uv_buf_t data,
+        uint64_t timeout,
         rs_rw_cb cb,
         void *cb_data)
 {
@@ -213,6 +216,7 @@ rs_read(rs_conn_t *conn,
 	
 	// Queue up the supplied request
 	req->type = RS__REQ_READ;
+	req->timeout = timeout;
 	req->dest_addr = dest_addr;
 	req->dest_cpu = dest_cpu;
 	req->data.rw.id = conn->next_rw_id++;

@@ -94,7 +94,7 @@ rs__udp_send_cb(uv_udp_send_t *req, int status)
 	// The packet has been dispatched
 	if (os->active)
 		// Setup a timeout for the response
-		uv_timer_start(&(os->timer_handle), rs__timer_cb, conn->timeout, 0);
+		uv_timer_start(&(os->timer_handle), rs__timer_cb, os->timeout, 0);
 	else
 		// A response has already arrived back thus we should simply process the
 		// queue as users waiting for this slot would be waiting on the

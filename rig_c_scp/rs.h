@@ -99,8 +99,6 @@ typedef void (*rs_free_cb)(void *cb_data);
  * @param scp_data_length The maximum length (in bytes) of the SCP data field.
  *                        This value should be chosen according to the target
  *                        devices' sver response.
- * @param timeout Number of milliseconds to wait for a response from the
- *                machine before retransmitting.
  * @param n_tries Number of transmission attempts to make (including initial
  *                attempt) before giving up on a request. Must be at least 1.
  * @param n_outstanding Number of packets which may be simultaneously awaiting
@@ -109,7 +107,6 @@ typedef void (*rs_free_cb)(void *cb_data);
 rs_conn_t *rs_init(uv_loop_t *loop,
                    const struct sockaddr *addr,
                    size_t scp_data_length,
-                   uint64_t timeout,
                    unsigned int n_tries,
                    unsigned int n_outstanding);
 
@@ -138,6 +135,8 @@ rs_conn_t *rs_init(uv_loop_t *loop,
  *                     scp_data_length value provided during initialisation,
  *                     less the space saved by using unused argument fields) the
  *                     data will be silently truncated.
+ * @param timeout Number of milliseconds to wait for a response from the
+ *                machine before retransmitting.
  * @param cb A callback function which will be called when a response is
  *           returned.
  * @param cb_data User-supplied data that will be passed to the callback
@@ -155,6 +154,7 @@ int rs_send_scp(rs_conn_t *conn,
                 uint32_t arg3,
                 uv_buf_t data,
                 size_t data_max_len,
+                uint64_t timeout,
                 rs_send_scp_cb cb,
                 void *cb_data);
 
@@ -167,6 +167,8 @@ int rs_send_scp(rs_conn_t *conn,
  * @param addr The address to write the data to.
  * @param data The data to write to the machine. Must remain valid until the
  *             callback function is called.
+ * @param timeout Number of milliseconds to wait for a response from the
+ *                machine before retransmitting.
  * @param cb A callback function which will be called when the write completes.
  * @param cb_data User-supplied data that will be passed to the callback
  *                function.
@@ -177,6 +179,7 @@ int rs_write(rs_conn_t *conn,
              uint8_t dest_cpu,
              uint32_t address,
              uv_buf_t data,
+             uint64_t timeout,
              rs_rw_cb cb,
              void *cb_data);
 
@@ -190,6 +193,8 @@ int rs_write(rs_conn_t *conn,
  * @param data A data buffer whose length will be used to determine the amount
  *             of data to read back. Must remain valid until the callback
  *             function is called.
+ * @param timeout Number of milliseconds to wait for a response from the
+ *                machine before retransmitting.
  * @param cb A callback function which will be called once the read is complete.
  * @param cb_data User-supplied data that will be passed to the callback
  *                function.
@@ -200,6 +205,7 @@ int rs_read(rs_conn_t *conn,
             uint8_t dest_cpu,
             uint32_t address,
             uv_buf_t data,
+            uint64_t timeout,
             rs_rw_cb cb,
             void *cb_data);
 

@@ -1,0 +1,3 @@
+[run]
+branch = True
+omit = rig_c_scp/cffi_compile.py

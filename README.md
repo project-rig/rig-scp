@@ -1,10 +1,16 @@
-Rig SCP
-=======
+Rig C SCP
+=========
 
-Rig SCP is a low-level, high-performance C implementation of the [SpiNNaker
+Rig C SCP is a low-level, high-performance C implementation of the [SpiNNaker
 Command Protocol
 (SCP)](https://spinnaker.cs.manchester.ac.uk/tiki-index.php?page=Application+note+5+-+SCP+Specification)
 transport mechanism built on top of [libuv](http://docs.libuv.org/en/v1.x/).
+
+Though the C library can be used as-is, it is intended primarily to be used via
+a Python wrapper build with [CFFI](https://cffi.readthedocs.org/en/latest/).
+
+This library is intended to serve as an optional higher-performance back-end
+for the [Rig](github.com/project-rig/rig) library.
 
 Purpose
 -------
@@ -12,11 +18,18 @@ Purpose
 This library is designed to support high throughput, reliable transmission and
 reception of SCP packets from a SpiNNaker machine with a focus on making
 efficient use of all available I/O resources.
-[Windowing](http://en.wikipedia.org/wiki/TCP_tuning#Window_size) is used to hide
-the effects of network latency on throughput and, within the implementation,
-data is not wastefully copied multiple times between the network socket and
-application. The use of multiple SCP connections simultaneously is also
-indirectly supported thanks to a completely asynchronous API.
+
+Though a number of Python SCP implementations now have comparable throughput to
+Rig C SCP, these implementations quickly become CPU bound if multiple
+connections are used in parallel. By contrast, this C implementation has been
+observed saturating 1 GBit Ethernet links while not saturating the CPU.
+
+[Windowing](http://en.wikipedia.org/wiki/TCP_tuning#Window_size) is used to
+hide the effects of network latency on throughput and, within the
+implementation, data is not wastefully copied multiple times between the
+network socket and application. The use of multiple SCP connections
+simultaneously is also indirectly supported thanks to a completely asynchronous
+API.
 
 The API also allows users to asynchronously send arbitrary SCP packets.  The
 `CMD_READ` and `CMD_WRITE` commands are optionally treated specially via a
@@ -27,64 +40,70 @@ Please note that this library does *not* aim to provide a general, high-level
 interface to the SCP command set. Users are instead required to construct their
 own sensible abstractions on top Rig SCP.
 
-Performance
------------
+C API Documentation
+-------------------
 
-Some informal benchmarks were conducted against a locally connected SpiNN-5
-board running SC&MP v1.33 where a 10 MByte block of random data was written then
-read back from chip (0, 0)'s SDRAM.
-
-Implementation                                              | Version | Read (MBit/s) | Write (MBit/s)
------------------------------------------------------------ | ------- | ------------- | --------------
-Rig SCP (this)                                              | 94121f7 | 29.8          | 32.1
-[ybug](https://github.com/SpiNNakerManchester/ybug)         | 1.33    | 6.5           | 6.4
-[Rig](https://github.com/project-rig/rig)                   | f1393f3 | 6.1           | 6.1
-[SpiNNMan](https://github.com/SpiNNakerManchester/SpiNNMan) | 3eab5ee | 4.0           | 4.1
-
-
-Documentation
--------------
-
-The API is documented in detail in its (short) header file
-[`include/rs.h`](include/rs.h).
+The C API is documented in detail in its (short) header file
+[`ric_c_scp/rs.h`](ric_c_scp/rs.h).
 
 A tutorial example program [`examples/hello.c`](examples/hello.c) is included
 which provides a heavily annotated tutorial-style walk-through of the complete
-API. This simple example application was used to produce the benchmark figures
-above.
+API.
+
+Python API Documentation
+------------------------
+
+The Python API largely lives in
+[`ric_c_scp/c_scp_connection.py`](ric_c_scp/c_scp_connection.py) and includes
+standard Python docstring API documentation.
+
+A tutorial example program [`examples/hello.py`](examples/hello.py) is included
+which provides an annotated walk-through of the API.
 
 
-Installation
-------------
+Python library compilation and installation
+-------------------------------------------
 
-Rig SCP depends on [libuv](http://docs.libuv.org/en/v1.x/) which should be
+Rig C SCP depends on [libuv](http://docs.libuv.org/en/v1.x/) which should be
 installed prior to installation.
 
-Compile and install using [cmake](http://www.cmake.org/) as usual:
+The Python module is built and installed as usual::
 
-    $ mkdir build
-    $ cd build
-    $ cmake ..
-    $ make
-    $ sudo make install
-
-The library is installed under the name `rigscp`.
+    $ python setup.py install
 
 
-Tests
------
+Testing
+-------
 
-[Check](http://check.sourceforge.net/) is used for unit testing. To build and
-run the test suite under valgrind use:
+[Check](http://check.sourceforge.net/) is used for unit testing of the C
+library. To build and run the C library test suite under valgrind use:
 
-    $ make run_tests
+    $ ./c_tests/run.sh
+
+[pytest](http://pytest.org/) is used for unit testing of the Python wrapper
+library. Assuming the library has been installed, the tests are executed using:
+
+    $ pip install -r requirements-test.txt
+    $ py.test py_tests
+
+[flake8](https://pypi.python.org/pypi/flake8) is used for linting the Python
+wrapper code like so:
+
+    $ flake8 rig_c_scp py_tests
+
+[tox](https://tox.readthedocs.org/) may be used to automatically build and test
+the Python library against several versions of Python (and also run the code
+lint checker) like so:
+
+    $ pip install tox
+    $ tox
 
 
-Internal Architecture
----------------------
+Internal Architecture (C Library)
+---------------------------------
 
-The following diagram depicts a single SCP 'connection' to a single IP address
-(i.e. SpiNNaker Chip):
+The following diagram depicts a single Rig C SCP 'connection' to a single IP
+address (i.e. SpiNNaker Chip):
 
 	                         A Rig SCP 'Connection'
 	                         ======================
